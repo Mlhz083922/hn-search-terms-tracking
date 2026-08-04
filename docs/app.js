@@ -149,12 +149,19 @@ async function api(path, options = {}) {
   if (method !== "GET" || path !== "/api/state") {
     throw new Error("只读版本：此操作已禁用，仅提供查看");
   }
-  const resp = await fetch("./data/state.json");
-  return resp.json();
+  return fetchState();
+}
+
+async function fetchState() {
+  const resp = await fetch("./data/state.json.gz");
+  if (!resp.ok) throw new Error(`数据快照加载失败 ${resp.status}`);
+  const buf = await resp.arrayBuffer();
+  const stream = new Response(buf).body.pipeThrough(new DecompressionStream("gzip"));
+  return new Response(stream).json();
 }
 
 async function loadDB() {
-  state.db = await fetch("./data/state.json").then((r) => r.json());
+  state.db = await fetchState();
   if (!state.weekId || !state.db.weeks[state.weekId]) {
     state.weekId = weekIds().at(-1);
   }
@@ -1636,6 +1643,6 @@ function exportCsv() {
   } catch (err) {
     document.body.innerHTML = `<div style="max-width:520px;margin:80px auto;background:#fff;border:1px solid #e3e8ee;border-radius:8px;padding:24px">
       <h2 style="margin-top:0">启动失败</h2><p>${esc(err.message)}</p>
-      <p class="muted">请确认 data/state.json 数据快照存在</p></div>`;
+      <p class="muted">请确认 data/state.json.gz 数据快照存在</p></div>`;
   }
 })();

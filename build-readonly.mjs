@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { gzipSync } from "node:zlib";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const appDir = "/Users/lynn/Documents/Codex/泳装关键词跟踪";
@@ -38,7 +39,9 @@ const patchedHtml = html
 await fs.writeFile(path.join(siteDir, "index.html"), patchedHtml, "utf8");
 
 const db = await loadDB({ force: true });
-await fs.writeFile(path.join(dataDir, "state.json"), JSON.stringify(db), "utf8");
+const stateJson = JSON.stringify(db);
+await fs.writeFile(path.join(dataDir, "state.json.gz"), gzipSync(stateJson));
+await fs.rm(path.join(dataDir, "state.json"), { force: true });
 
 const js = await fs.readFile(path.join(appDir, "public", "app.js"), "utf8");
 const patchedJs = js
@@ -57,13 +60,20 @@ const patchedJs = js
   if (method !== "GET" || path !== "/api/state") {
     throw new Error("只读版本：此操作已禁用，仅提供查看");
   }
-  const resp = await fetch("./data/state.json");
-  return resp.json();
+  return fetchState();
+}
+
+async function fetchState() {
+  const resp = await fetch("./data/state.json.gz");
+  if (!resp.ok) throw new Error(\`数据快照加载失败 \${resp.status}\`);
+  const buf = await resp.arrayBuffer();
+  const stream = new Response(buf).body.pipeThrough(new DecompressionStream("gzip"));
+  return new Response(stream).json();
 }`
   )
   .replace(
     'state.db = await api("/api/state");',
-    'state.db = await fetch("./data/state.json").then((r) => r.json());'
+    "state.db = await fetchState();"
   )
   .replace(
     `  document.querySelectorAll(".tab").forEach((t) => {
@@ -157,7 +167,7 @@ function exportCsv() {
   )
   .replace(
     "请确认服务端已启动：node server.mjs",
-    "请确认 data/state.json 数据快照存在"
+    "请确认 data/state.json.gz 数据快照存在"
   );
 await fs.writeFile(path.join(siteDir, "app.js"), patchedJs, "utf8");
 

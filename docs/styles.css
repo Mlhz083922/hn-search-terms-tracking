@@ -57,7 +57,7 @@ a { color: var(--accent-ink); text-decoration: none; }
 .brand p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
 .topbar-right { display: flex; align-items: center; gap: 10px; }
 .week-picker {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   background: var(--panel);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
@@ -69,6 +69,7 @@ a { color: var(--accent-ink); text-decoration: none; }
   border: 0; outline: 0; background: transparent;
   font-weight: 600; color: var(--ink); max-width: 150px;
 }
+#year-select { max-width: 86px; }
 
 .tabs {
   display: flex;

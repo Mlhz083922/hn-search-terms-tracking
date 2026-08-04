@@ -10,6 +10,7 @@ const esc = (s) =>
 const state = {
   db: null,
   weekId: null,
+  year: null,
   view: "overview",
   libraryPage: 1,
   filter: { q: "", category: "", attribute: "", source: "", brands: [], rankMin: "", rankMax: "" },
@@ -174,8 +175,17 @@ function initIcons(root = document) {
 
 function render() {
   if (!state.db) return;
+  const years = [...new Set(weekIds().map((wid) => wid.slice(0, 4)))].sort();
+  const yearSel = $("#year-select");
+  if (yearSel) {
+    yearSel.innerHTML = years.map((y) => `<option value="${y}">${y}年</option>`).join("");
+    if (!state.year || !years.includes(state.year)) state.year = years.at(-1);
+    yearSel.value = state.year;
+  }
+  const yearWeeks = weekIds().filter((wid) => !state.year || wid.startsWith(state.year));
+  if (!state.weekId || !yearWeeks.includes(state.weekId)) state.weekId = yearWeeks.at(-1);
   const select = $("#week-select");
-  select.innerHTML = weekIds()
+  select.innerHTML = yearWeeks
     .map((wid) => {
       const w = state.db.weeks[wid];
       const vol = w.volumeSource ? " · 有搜索量" : "";
@@ -947,6 +957,18 @@ function bindViewEvents(root) {
       state.libraryPage = 1;
       render();
     });
+  }
+
+  const yearSel = $("#year-select");
+  if (yearSel) {
+    yearSel.onchange = () => {
+      state.year = yearSel.value;
+      const wids = weekIds().filter((w) => w.startsWith(state.year));
+      state.weekId = wids.at(-1);
+      state.moverBaseWeek = null;
+      state.moverCurWeek = null;
+      render();
+    };
   }
 
   const weekSel = $("#week-select");

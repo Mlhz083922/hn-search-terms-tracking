@@ -1,6 +1,6 @@
 # HN Search Terms Tracking 只读站
 
-把 `site/` 目录发布到 GitHub Pages，供团队只读查看女装泳装关键词的 ABA 排名与搜索量数据。
+把 `docs/` 目录发布到 GitHub Pages，供团队只读查看女装泳装关键词的 ABA 排名与搜索量数据。
 
 ## 更新数据快照
 

@@ -4,7 +4,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const appDir = "/Users/lynn/Documents/Codex/泳装关键词跟踪";
-const siteDir = path.join(root, "site");
+const siteDir = path.join(root, "docs");
 const dataDir = path.join(siteDir, "data");
 const vendorDir = path.join(siteDir, "vendor");
 

@@ -158,23 +158,112 @@ async function api(path, options = {}) {
   if (method !== "GET" || path !== "/api/state") {
     throw new Error("只读版本：此操作已禁用，仅提供查看");
   }
-  return fetchState();
+  return fetchStateWithProgress();
 }
 
-async function fetchState() {
+const STATE_KEY = "hnStateCache";
+
+function openStateDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open("hnSearchTerms", 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("state");
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function stateCacheGet() {
+  try {
+    const db = await openStateDb();
+    return await new Promise((resolve) => {
+      const tx = db.transaction("state", "readonly");
+      const req = tx.objectStore("state").get(STATE_KEY);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function stateCacheSet(value) {
+  try {
+    const db = await openStateDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction("state", "readwrite");
+      tx.objectStore("state").put(value, STATE_KEY);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {}
+}
+
+function showLoadProgress(text) {
+  const el = document.querySelector("#load-status");
+  if (!el) return;
+  el.hidden = false;
+  el.textContent = text;
+}
+
+async function fetchStateWithProgress() {
   const resp = await fetch("./data/state.json.gz");
   if (!resp.ok) throw new Error(`数据快照加载失败 ${resp.status}`);
-  const buf = await resp.arrayBuffer();
+  const enc = (resp.headers.get("Content-Encoding") || "").toLowerCase();
+  if (enc.includes("gzip")) return resp.json();
+  const total = Number(resp.headers.get("Content-Length") || 0);
+  const reader = resp.body.getReader();
+  const chunks = [];
+  let received = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    if (total) {
+      const pct = Math.min(100, Math.round((received / total) * 100));
+      showLoadProgress(`数据加载中 ${pct}%，约 ${(received / 1048576).toFixed(1)} MB / ${(total / 1048576).toFixed(1)} MB`);
+    }
+  }
+  const buf = new Uint8Array(received);
+  let off = 0;
+  for (const c of chunks) {
+    buf.set(c, off);
+    off += c.length;
+  }
   const stream = new Response(buf).body.pipeThrough(new DecompressionStream("gzip"));
   return new Response(stream).json();
 }
 
 async function loadDB() {
-  state.db = await fetchState();
+  const cached = await stateCacheGet();
+  if (cached && cached.db) {
+    state.db = cached.db;
+    applyDefaults();
+    refreshStateInBackground();
+    return;
+  }
+  state.db = await fetchStateWithProgress();
+  applyDefaults();
+  await stateCacheSet({ db: state.db, ts: Date.now() });
+}
+
+function applyDefaults() {
   if (!state.weekId || !state.db.weeks[state.weekId]) {
     state.weekId = weekIds().at(-1);
   }
   if (!state.xiyouWeekId) state.xiyouWeekId = state.weekId;
+}
+
+async function refreshStateInBackground() {
+  try {
+    const fresh = await fetchStateWithProgress();
+    await stateCacheSet({ db: fresh, ts: Date.now() });
+    state.db = fresh;
+    applyDefaults();
+    render();
+    const loadEl = document.querySelector("#load-status");
+    if (loadEl) loadEl.hidden = true;
+  } catch {}
 }
 
 function initIcons(root = document) {
@@ -1735,8 +1824,11 @@ async function requireAuth() {
 (async function init() {
   try {
     await requireAuth();
+    showLoadProgress("正在加载数据，首次打开可能需要几分钟，之后会秒开…");
     await loadDB();
     render();
+    const loadEl = document.querySelector("#load-status");
+    if (loadEl) loadEl.hidden = true;
   } catch (err) {
     document.body.innerHTML = `<div style="max-width:520px;margin:80px auto;background:#fff;border:1px solid #e3e8ee;border-radius:8px;padding:24px">
       <h2 style="margin-top:0">启动失败</h2><p>${esc(err.message)}</p>

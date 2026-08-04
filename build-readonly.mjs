@@ -31,6 +31,20 @@ const GATE_CSS = `
 .auth-box input { width: 100%; margin-bottom: 12px; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: 6px; }
 .auth-box .btn { width: 100%; }
 .auth-error { color: var(--down); margin: 10px 0 0; font-size: 13px; }
+.load-status {
+  position: fixed; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1001;
+  max-width: min(560px, 90vw);
+  padding: 18px 24px;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.16);
+  color: var(--ink-2);
+  font-size: 14px;
+  text-align: center;
+}
 `;
 const GATE_HTML = `
   <div id="auth-gate" class="auth-gate">
@@ -42,7 +56,8 @@ const GATE_HTML = `
       <button class="btn primary" type="submit">进入</button>
       <p id="auth-error" class="auth-error" hidden>密码错误，请重试</p>
     </form>
-  </div>`;
+  </div>
+  <div id="load-status" class="load-status" hidden></div>`;
 
 const { loadDB } = await import(
   pathToFileURL(path.join(appDir, "lib", "store.mjs")).href
@@ -97,20 +112,121 @@ const patchedJs = js
   if (method !== "GET" || path !== "/api/state") {
     throw new Error("只读版本：此操作已禁用，仅提供查看");
   }
-  return fetchState();
+  return fetchStateWithProgress();
 }
 
-async function fetchState() {
+const STATE_KEY = "hnStateCache";
+
+function openStateDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open("hnSearchTerms", 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("state");
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function stateCacheGet() {
+  try {
+    const db = await openStateDb();
+    return await new Promise((resolve) => {
+      const tx = db.transaction("state", "readonly");
+      const req = tx.objectStore("state").get(STATE_KEY);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function stateCacheSet(value) {
+  try {
+    const db = await openStateDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction("state", "readwrite");
+      tx.objectStore("state").put(value, STATE_KEY);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {}
+}
+
+function showLoadProgress(text) {
+  const el = document.querySelector("#load-status");
+  if (!el) return;
+  el.hidden = false;
+  el.textContent = text;
+}
+
+async function fetchStateWithProgress() {
   const resp = await fetch("./data/state.json.gz");
   if (!resp.ok) throw new Error(\`数据快照加载失败 \${resp.status}\`);
-  const buf = await resp.arrayBuffer();
+  const enc = (resp.headers.get("Content-Encoding") || "").toLowerCase();
+  if (enc.includes("gzip")) return resp.json();
+  const total = Number(resp.headers.get("Content-Length") || 0);
+  const reader = resp.body.getReader();
+  const chunks = [];
+  let received = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    if (total) {
+      const pct = Math.min(100, Math.round((received / total) * 100));
+      showLoadProgress(\`数据加载中 \${pct}%，约 \${(received / 1048576).toFixed(1)} MB / \${(total / 1048576).toFixed(1)} MB\`);
+    }
+  }
+  const buf = new Uint8Array(received);
+  let off = 0;
+  for (const c of chunks) {
+    buf.set(c, off);
+    off += c.length;
+  }
   const stream = new Response(buf).body.pipeThrough(new DecompressionStream("gzip"));
   return new Response(stream).json();
 }`
   )
   .replace(
-    'state.db = await api("/api/state");',
-    "state.db = await fetchState();"
+    `async function loadDB() {
+  state.db = await api("/api/state");
+  if (!state.weekId || !state.db.weeks[state.weekId]) {
+    state.weekId = weekIds().at(-1);
+  }
+  if (!state.xiyouWeekId) state.xiyouWeekId = state.weekId;
+}`,
+    `async function loadDB() {
+  const cached = await stateCacheGet();
+  if (cached && cached.db) {
+    state.db = cached.db;
+    applyDefaults();
+    refreshStateInBackground();
+    return;
+  }
+  state.db = await fetchStateWithProgress();
+  applyDefaults();
+  await stateCacheSet({ db: state.db, ts: Date.now() });
+}
+
+function applyDefaults() {
+  if (!state.weekId || !state.db.weeks[state.weekId]) {
+    state.weekId = weekIds().at(-1);
+  }
+  if (!state.xiyouWeekId) state.xiyouWeekId = state.weekId;
+}
+
+async function refreshStateInBackground() {
+  try {
+    const fresh = await fetchStateWithProgress();
+    await stateCacheSet({ db: fresh, ts: Date.now() });
+    state.db = fresh;
+    applyDefaults();
+    render();
+    const loadEl = document.querySelector("#load-status");
+    if (loadEl) loadEl.hidden = true;
+  } catch {}
+}`
   )
   .replace(
     `  document.querySelectorAll(".tab").forEach((t) => {
@@ -209,7 +325,8 @@ function exportCsv() {
   .replace(
     `(async function init() {
   try {
-    await loadDB();`,
+    await loadDB();
+    render();`,
     `const READONLY_PASSWORD_HASH = "${READONLY_PASSWORD_HASH}";
 
 async function requireAuth() {
@@ -248,7 +365,11 @@ async function requireAuth() {
 (async function init() {
   try {
     await requireAuth();
-    await loadDB();`
+    showLoadProgress("正在加载数据，首次打开可能需要几分钟，之后会秒开…");
+    await loadDB();
+    render();
+    const loadEl = document.querySelector("#load-status");
+    if (loadEl) loadEl.hidden = true;`
   );
 await fs.writeFile(path.join(siteDir, "app.js"), patchedJs, "utf8");
 

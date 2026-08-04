@@ -586,3 +586,17 @@ button.chip { font: inherit; cursor: pointer; }
 .auth-box input { width: 100%; margin-bottom: 12px; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: 6px; }
 .auth-box .btn { width: 100%; }
 .auth-error { color: var(--down); margin: 10px 0 0; font-size: 13px; }
+.load-status {
+  position: fixed; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1001;
+  max-width: min(560px, 90vw);
+  padding: 18px 24px;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.16);
+  color: var(--ink-2);
+  font-size: 14px;
+  text-align: center;
+}

@@ -7,6 +7,16 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <div id="auth-gate" class="auth-gate">
+    <form id="auth-form" class="auth-box">
+      <div class="auth-logo">泳</div>
+      <h1>HN Search Terms Tracking</h1>
+      <p>输入访问密码查看数据</p>
+      <input id="auth-pass" type="password" placeholder="访问密码" autocomplete="current-password">
+      <button class="btn primary" type="submit">进入</button>
+      <p id="auth-error" class="auth-error" hidden>密码错误，请重试</p>
+    </form>
+  </div>
   <div id="app">
     <header class="topbar">
       <div class="brand">

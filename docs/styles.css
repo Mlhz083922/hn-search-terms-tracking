@@ -211,7 +211,7 @@ table.data .kw-cell { max-width: 300px; }
   color: var(--ink-2);
   font-size: 12px;
 }
-.rank-num.red { background: var(--down-soft); border-color: #f3c6c7; color: var(--down); }
+.rank-num.green { background: var(--up-soft); border-color: #c4e8d2; color: var(--up); }
 
 .muted { color: var(--muted); }
 .empty {
@@ -565,3 +565,23 @@ button.chip { font: inherit; cursor: pointer; }
   background: var(--accent);
   transition: width 0.4s ease;
 }
+
+.auth-gate {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg);
+}
+.auth-box {
+  width: min(380px, 90vw); padding: 28px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12); text-align: center;
+}
+.auth-logo {
+  width: 44px; height: 44px; margin: 0 auto; display: flex; align-items: center; justify-content: center;
+  background: var(--accent); color: #fff; border-radius: 10px; font-weight: 700; font-size: 20px;
+}
+.auth-box h1 { font-size: 20px; margin: 14px 0 6px; }
+.auth-box p { color: var(--muted); margin: 0 0 16px; }
+.auth-box input { width: 100%; margin-bottom: 12px; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: 6px; }
+.auth-box .btn { width: 100%; }
+.auth-error { color: var(--down); margin: 10px 0 0; font-size: 13px; }

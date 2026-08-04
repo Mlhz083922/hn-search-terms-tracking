@@ -9,6 +9,41 @@ const siteDir = path.join(root, "docs");
 const dataDir = path.join(siteDir, "data");
 const vendorDir = path.join(siteDir, "vendor");
 
+// SHA-256 of the read-only team password ("HN2026").
+const READONLY_PASSWORD_HASH = "c47ad772ab8141e427d2982db0fd7060cffad4806d218e87d3644fccaf07a461";
+const GATE_CSS = `
+.auth-gate {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg);
+}
+.auth-box {
+  width: min(380px, 90vw); padding: 28px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12); text-align: center;
+}
+.auth-logo {
+  width: 44px; height: 44px; margin: 0 auto; display: flex; align-items: center; justify-content: center;
+  background: var(--accent); color: #fff; border-radius: 10px; font-weight: 700; font-size: 20px;
+}
+.auth-box h1 { font-size: 20px; margin: 14px 0 6px; }
+.auth-box p { color: var(--muted); margin: 0 0 16px; }
+.auth-box input { width: 100%; margin-bottom: 12px; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: 6px; }
+.auth-box .btn { width: 100%; }
+.auth-error { color: var(--down); margin: 10px 0 0; font-size: 13px; }
+`;
+const GATE_HTML = `
+  <div id="auth-gate" class="auth-gate">
+    <form id="auth-form" class="auth-box">
+      <div class="auth-logo">泳</div>
+      <h1>HN Search Terms Tracking</h1>
+      <p>输入访问密码查看数据</p>
+      <input id="auth-pass" type="password" placeholder="访问密码" autocomplete="current-password">
+      <button class="btn primary" type="submit">进入</button>
+      <p id="auth-error" class="auth-error" hidden>密码错误，请重试</p>
+    </form>
+  </div>`;
+
 const { loadDB } = await import(
   pathToFileURL(path.join(appDir, "lib", "store.mjs")).href
 );
@@ -20,11 +55,12 @@ async function copy(name, from, to) {
   await fs.copyFile(path.join(appDir, from, name), path.join(siteDir, to || name));
 }
 
-await copy("styles.css", "public");
+const css = await fs.readFile(path.join(appDir, "public", "styles.css"), "utf8");
+await fs.writeFile(path.join(siteDir, "styles.css"), css + GATE_CSS, "utf8");
 await copy("lucide.min.js", "public/vendor", "vendor/lucide.min.js");
 
 const html = await fs.readFile(path.join(appDir, "public", "index.html"), "utf8");
-const patchedHtml = html
+let patchedHtml = html
   .replace(
     "<title>女装泳装周度热搜词追踪</title>",
     "<title>HN Search Terms Tracking · 女装泳装热搜词追踪</title>"
@@ -36,6 +72,7 @@ const patchedHtml = html
     "<p id=\"site-label\">亚马逊美国站 · 周度更新</p>",
     "<p id=\"site-label\">亚马逊美国站 · HN Search Terms Tracking · 只读快照</p>"
   );
+patchedHtml = patchedHtml.replace("<body>", "<body>" + GATE_HTML);
 await fs.writeFile(path.join(siteDir, "index.html"), patchedHtml, "utf8");
 
 const db = await loadDB({ force: true });
@@ -168,6 +205,42 @@ function exportCsv() {
   .replace(
     "请确认服务端已启动：node server.mjs",
     "请确认 data/state.json.gz 数据快照存在"
+  )
+  .replace(
+    `(async function init() {
+  try {
+    await loadDB();`,
+    `const READONLY_PASSWORD_HASH = "${READONLY_PASSWORD_HASH}";
+
+async function requireAuth() {
+  const gate = document.querySelector("#auth-gate");
+  if (!gate) return true;
+  const form = document.querySelector("#auth-form");
+  const input = document.querySelector("#auth-pass");
+  const err = document.querySelector("#auth-error");
+  const hash = async (s) => {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  };
+  return new Promise((resolve) => {
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if ((await hash(input.value)) === READONLY_PASSWORD_HASH) {
+        gate.remove();
+        resolve(true);
+      } else {
+        if (err) err.hidden = false;
+        input.value = "";
+        input.focus();
+      }
+    });
+  });
+}
+
+(async function init() {
+  try {
+    await requireAuth();
+    await loadDB();`
   );
 await fs.writeFile(path.join(siteDir, "app.js"), patchedJs, "utf8");
 

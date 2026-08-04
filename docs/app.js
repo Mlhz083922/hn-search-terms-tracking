@@ -16,6 +16,10 @@ const state = {
   filter: { q: "", category: "", attribute: "", source: "", brands: [], rankMin: "", rankMax: "" },
   sort: { key: "", dir: 1 },
   overviewBrands: [],
+  overviewCategories: [],
+  overviewAttributes: [],
+  volFromWeek: null,
+  volToWeek: null,
   moverBaseWeek: null,
   moverCurWeek: null,
   draft: null,
@@ -52,35 +56,39 @@ function brandMatches(k, brands) {
   return brands.some((b) => bl === String(b).toLowerCase().trim());
 }
 
-function brandMultiHtml(selected, target) {
-  const focusBrands = state.db.settings?.focusBrands || [];
+function multiFilterHtml(label, options, selected, target) {
   const n = (selected || []).length;
   return `
-    <div class="multi-filter" data-brand-multi data-target="${target}">
-      <button class="btn" type="button" data-brand-toggle>
-        <i data-lucide="filter"></i><span>品牌</span>
+    <div class="multi-filter" data-multi data-target="${target}">
+      <button class="btn" type="button" data-multi-toggle>
+        <i data-lucide="filter"></i><span>${label}</span>
         ${n ? `<span class="multi-count">${n}</span>` : ""}
       </button>
       <div class="multi-pop" hidden>
         <div class="multi-pop-head">
-          <span class="muted sm">仅展示白名单品牌</span>
+          <span class="muted sm">仅展示所选值</span>
           <span class="hstack">
-            <button class="btn ghost sm" type="button" data-brand-all>全选</button>
-            <button class="btn ghost sm" type="button" data-brand-none>清空</button>
+            <button class="btn ghost sm" type="button" data-multi-all>全选</button>
+            <button class="btn ghost sm" type="button" data-multi-none>清空</button>
           </span>
         </div>
         <div class="multi-list">
-          ${focusBrands.map((b) => `
+          ${options.map((b) => `
             <label class="multi-item">
               <input type="checkbox" value="${esc(b)}" ${(selected || []).includes(b) ? "checked" : ""}>
               <span>${esc(b)}</span>
             </label>`).join("")}
         </div>
         <div class="multi-pop-foot">
-          <button class="btn primary sm" type="button" data-brand-apply>确定</button>
+          <button class="btn primary sm" type="button" data-multi-apply>确定</button>
         </div>
       </div>
     </div>`;
+}
+
+function exactMatches(value, selected) {
+  if (!selected || !selected.length) return true;
+  return selected.includes(value || "");
 }
 
 function rankOf(kid, wid) {
@@ -213,13 +221,20 @@ function viewOverview() {
   const focusSet = new Set(
     (state.db.settings?.focusBrands || []).map((b) => String(b).toLowerCase().trim())
   );
-  const focusCount = active.filter((k) => focusSet.has(String(k.brand || "").toLowerCase().trim())).length;
-  const filtered = active.filter((k) => brandMatches(k, state.overviewBrands));
+  const focusBrands = state.db.settings?.focusBrands || [];
+  const cats = [...new Set(active.map((k) => k.categoryWord).filter(Boolean))].sort();
+  const attrs = [...new Set(active.map((k) => k.attribute).filter(Boolean))].sort();
+  const filtered = active.filter((k) =>
+    brandMatches(k, state.overviewBrands) &&
+    exactMatches(k.categoryWord, state.overviewCategories) &&
+    exactMatches(k.attribute, state.overviewAttributes)
+  );
+  const focusCount = filtered.filter((k) => focusSet.has(String(k.brand || "").toLowerCase().trim())).length;
   const ranked = filtered.filter((k) => rankOf(k.id, wid) != null);
-  const rankedPrev = prev ? active.filter((k) => rankOf(k.id, prev) != null).length : null;
+  const rankedPrev = prev ? filtered.filter((k) => rankOf(k.id, prev) != null).length : null;
   const volMatched = filtered.filter((k) => volOf(k.id, wid) != null).length;
   const weekHasVol = volMatched > 0;
-  const newlyAdded = active.filter((k) => k.firstSeenWeek === wid).length;
+  const newlyAdded = filtered.filter((k) => k.firstSeenWeek === wid).length;
   const newWeeks = Object.keys(state.db.weeks).filter((x) => x > wid).length;
 
   const topRows = ranked
@@ -244,17 +259,17 @@ function viewOverview() {
     .filter((x) => x.v != null)
     .sort((a, b) => b.v - a.v)
     .slice(0, 10);
-  const maxVol = volRows.length ? volRows[0].v : 1;
-
-  const volWeeks = weekIds().filter((x) => active.some((k) => volOf(k.id, x) != null));
-  const volSums = volWeeks
-    .map((x) => ({ wid: x, sum: active.reduce((a, k) => a + (volOf(k.id, x) || 0), 0) }))
-    .slice(-12);
+  const volWeeks = weekIds().filter((x) => filtered.some((k) => volOf(k.id, x) != null));
+  const volRangeStart = state.volFromWeek || volWeeks.slice(-12)[0] || volWeeks[0];
+  const volRangeEnd = state.volToWeek || volWeeks.at(-1);
+  const volRange = volWeeks.filter((x) => x >= volRangeStart && x <= volRangeEnd);
+  const volSums = volRange
+    .map((x) => ({ wid: x, sum: filtered.reduce((a, k) => a + (volOf(k.id, x) || 0), 0) }));
 
   const stats = [
-    { label: "词库词数", value: fmt(active.length), icon: "database", extra: `共 ${state.db.keywords.length} 条 · 重点品牌 ${focusCount} 词` },
+    { label: "词库词数", value: fmt(filtered.length), icon: "database", extra: `共 ${state.db.keywords.length} 条词库 · 白名单品牌 ${focusCount} 词` },
     { label: "当周上榜", value: fmt(ranked.length), icon: "trending-up", extra: rankedPrev == null ? "" : ranked.length - rankedPrev > 0 ? `<span class="up">+${ranked.length - rankedPrev}</span> 较上周边化` : ranked.length - rankedPrev < 0 ? `<span class="down">${ranked.length - rankedPrev}</span> 较上周边化` : "与上周持平" },
-    { label: "搜索量已匹配", value: fmt(volMatched), icon: "search", extra: weekHasVol ? `覆盖率 ${active.length ? Math.round((volMatched / active.length) * 100) : 0}%` : "西柚数据待更新（预计周三）" },
+    { label: "搜索量已匹配", value: fmt(volMatched), icon: "search", extra: weekHasVol ? `覆盖率 ${filtered.length ? Math.round((volMatched / filtered.length) * 100) : 0}%` : "西柚数据待更新（预计周三）" },
     { label: "本周新增", value: fmt(newlyAdded), icon: "plus-circle", extra: newWeeks > 0 ? "当前周后仍有新周期" : "当前为最新数据周" },
     { label: "当周周期", value: esc(weekLabel(wid)), icon: "calendar", extra: state.db.weeks[wid]?.volumeSource === "xiyou" ? "搜索量来自西柚" : weekHasVol ? "搜索量来自人工登记" : "搜索量待西柚更新" },
     { label: "白名单品牌", value: fmt(focusCount), icon: "star", extra: "品牌白名单相关词" },
@@ -268,7 +283,9 @@ function viewOverview() {
           <p>女装泳装类目周度 ABA 排名与搜索量变化</p>
         </div>
         <div class="view-actions">
-          ${brandMultiHtml(state.overviewBrands, "overview")}
+          ${multiFilterHtml("品牌", focusBrands, state.overviewBrands, "overview-brands")}
+          ${multiFilterHtml("类目词", cats, state.overviewCategories, "overview-cats")}
+          ${multiFilterHtml("属性词", attrs, state.overviewAttributes, "overview-attrs")}
         </div>
       </div>
       <div class="grid-stats">
@@ -316,12 +333,12 @@ function viewOverview() {
         <div style="display:grid;gap:16px">
           <div class="panel">
             <div class="panel-head">
-              <h3>排名上升最快</h3>
-              <span class="sub">当前周排名 25 万以内 · 上升幅度 TOP15</span>
+              <h3>自定义周度对比</h3>
+              <span class="sub">排名上升最快 TOP15 · 对比周排名 25 万以内</span>
             </div>
             <div class="panel-head" style="border-bottom:0;padding-top:8px;flex-wrap:wrap">
               <span class="hstack" style="gap:6px">
-                <span class="muted sm">对比周</span>
+                <span class="muted sm">基准周</span>
                 <select class="select" id="mover-base">
                   ${weekIds().map((x) => `<option value="${x}" ${x === moverBase ? "selected" : ""}>${esc(weekLabel(x))}</option>`).join("")}
                 </select>
@@ -329,12 +346,12 @@ function viewOverview() {
                 <select class="select" id="mover-cur">
                   ${weekIds().map((x) => `<option value="${x}" ${x === moverCur ? "selected" : ""}>${esc(weekLabel(x))}</option>`).join("")}
                 </select>
-                <span class="muted sm">当前周</span>
+                <span class="muted sm">对比周</span>
               </span>
             </div>
             <div class="panel-body">
               ${movers.length ? `
-                <div class="mover-head"><span>关键词</span><span>对比周 → 当前周</span><span>上升幅度</span></div>
+                <div class="mover-head"><span>关键词</span><span>基准周 → 对比周</span><span>上升幅度</span></div>
                 ${movers.map(({ k, r, p, ratio }) => `
                   <div class="mover-row clickable" data-action="open-keyword" data-id="${k.id}" title="点击查看历史趋势">
                     <span class="label" title="${esc(k.keyword)}">${esc(k.keyword)}</span>
@@ -348,17 +365,30 @@ function viewOverview() {
           <div class="panel">
             <div class="panel-head"><h3>当周搜索量 Top 10</h3><span class="sub">来自西柚匹配</span></div>
             <div class="panel-body">
-              ${volRows.length ? volRows.map(({ k, v }) => `
-                <div class="mini-row" style="margin-bottom:8px">
+              ${volRows.length ? volRows.map(({ k, v }, i) => `
+                <div class="mini-row clickable" data-action="open-keyword" data-id="${k.id}" title="点击查看历史趋势" style="margin-bottom:6px">
+                  <span class="rank">${i + 1}</span>
                   <span class="label" title="${esc(k.keyword)}">${esc(k.keyword)}</span>
-                  <span class="track"><span class="fill" style="width:${Math.max(3, (v / maxVol) * 100)}%"></span></span>
-                  <span class="val">${fmt(v)}</span>
+                  <span class="val"><strong>${fmt(v)}</strong></span>
                 </div>`).join("") : '<div class="empty">本周搜索量待西柚更新（预计每周三）</div>'}
             </div>
           </div>
 
           <div class="panel">
-            <div class="panel-head"><h3>周度搜索量合计</h3><span class="sub">已有数据的周期</span></div>
+            <div class="panel-head"><h3>周度搜索量合计</h3><span class="sub">按当前筛选 · 自定义区间</span></div>
+            <div class="panel-head" style="border-bottom:0;padding-top:8px;flex-wrap:wrap">
+              <span class="hstack" style="gap:6px">
+                <span class="muted sm">起始周</span>
+                <select class="select" id="vol-from">
+                  ${volWeeks.map((x) => `<option value="${x}" ${x === volRangeStart ? "selected" : ""}>${esc(weekLabel(x))}</option>`).join("")}
+                </select>
+                <span class="muted">→</span>
+                <select class="select" id="vol-to">
+                  ${volWeeks.map((x) => `<option value="${x}" ${x === volRangeEnd ? "selected" : ""}>${esc(weekLabel(x))}</option>`).join("")}
+                </select>
+                <span class="muted sm">结束周</span>
+              </span>
+            </div>
             <div class="panel-body">${volumeTrendSvg(volSums)}</div>
           </div>
         </div>
@@ -519,7 +549,7 @@ function viewLibrary() {
           <div class="search"><i data-lucide="search"></i><input id="lib-q" placeholder="搜索关键词、翻译、品牌..." value="${esc(f.q)}"></div>
           <select class="select" id="lib-category"><option value="">全部类目词</option>${cats.map((c) => `<option ${c === f.category ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>
           <select class="select" id="lib-attribute"><option value="">全部属性词</option>${attrs.map((a) => `<option ${a === f.attribute ? "selected" : ""}>${esc(a)}</option>`).join("")}</select>
-          ${brandMultiHtml(f.brands, "library")}
+          ${multiFilterHtml("品牌", state.db.settings?.focusBrands || [], f.brands, "library")}
           <div class="rank-filter" title="按当周 ABA 排名区间筛选">
             <span class="muted sm">当周排名</span>
             <input type="number" id="lib-rank-min" min="1" step="1" placeholder="最小" value="${esc(f.rankMin)}">
@@ -870,32 +900,34 @@ function bindViewEvents(root) {
     });
   });
 
-  root.querySelectorAll("[data-brand-toggle]").forEach((btn) => {
+  root.querySelectorAll("[data-multi-toggle]").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      const wrap = btn.closest("[data-brand-multi]");
+      const wrap = btn.closest("[data-multi]");
       const pop = wrap?.querySelector(".multi-pop");
       if (pop) pop.hidden = !pop.hidden;
     });
   });
-  root.querySelectorAll("[data-brand-all]").forEach((btn) => {
+  root.querySelectorAll("[data-multi-all]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const wrap = btn.closest("[data-brand-multi]");
+      const wrap = btn.closest("[data-multi]");
       wrap?.querySelectorAll("input[type=checkbox]").forEach((c) => (c.checked = true));
     });
   });
-  root.querySelectorAll("[data-brand-none]").forEach((btn) => {
+  root.querySelectorAll("[data-multi-none]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const wrap = btn.closest("[data-brand-multi]");
+      const wrap = btn.closest("[data-multi]");
       wrap?.querySelectorAll("input[type=checkbox]").forEach((c) => (c.checked = false));
     });
   });
-  root.querySelectorAll("[data-brand-apply]").forEach((btn) => {
+  root.querySelectorAll("[data-multi-apply]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const wrap = btn.closest("[data-brand-multi]");
+      const wrap = btn.closest("[data-multi]");
       if (!wrap) return;
       const vals = [...wrap.querySelectorAll("input[type=checkbox]:checked")].map((c) => c.value);
-      if (wrap.dataset.target === "overview") state.overviewBrands = vals;
+      if (wrap.dataset.target === "overview-brands") state.overviewBrands = vals;
+      else if (wrap.dataset.target === "overview-cats") state.overviewCategories = vals;
+      else if (wrap.dataset.target === "overview-attrs") state.overviewAttributes = vals;
       else state.filter.brands = vals;
       state.libraryPage = 1;
       render();
@@ -906,6 +938,11 @@ function bindViewEvents(root) {
   const moverCur = root.querySelector("#mover-cur");
   if (moverBase) moverBase.addEventListener("change", () => { state.moverBaseWeek = moverBase.value; render(); });
   if (moverCur) moverCur.addEventListener("change", () => { state.moverCurWeek = moverCur.value; render(); });
+
+  const volFrom = root.querySelector("#vol-from");
+  const volTo = root.querySelector("#vol-to");
+  if (volFrom) volFrom.addEventListener("change", () => { state.volFromWeek = volFrom.value; render(); });
+  if (volTo) volTo.addEventListener("change", () => { state.volToWeek = volTo.value; render(); });
 
   const q = root.querySelector("#lib-q");
   if (q) {
@@ -1609,7 +1646,7 @@ function debounce(fn, ms) {
 
 document.addEventListener("click", (e) => {
   document.querySelectorAll(".multi-pop:not([hidden])").forEach((pop) => {
-    const wrap = pop.closest("[data-brand-multi]");
+    const wrap = pop.closest("[data-multi]");
     if (!wrap || !wrap.contains(e.target)) pop.hidden = true;
   });
 });

@@ -1,0 +1,5 @@
+/bin/
+/data/
+/cloudflared.plist
+.DS_Store
+*.log

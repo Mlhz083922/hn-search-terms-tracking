@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HN Search Terms Tracking · 女装泳装热搜词追踪</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">泳</div>
+        <div>
+          <h1>女装泳装热搜词追踪</h1>
+          <p id="site-label">亚马逊美国站 · HN Search Terms Tracking · 只读快照</p>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <label class="week-picker">
+          <span>数据周</span>
+          <select id="week-select"></select>
+        </label>
+        <button id="btn-export" class="btn ghost" title="导出关键词库 CSV">
+          <i data-lucide="download"></i><span>导出CSV</span>
+        </button>
+      </div>
+    </header>
+
+    <nav class="tabs" aria-label="主导航">
+      <button class="tab active" data-view="overview"><i data-lucide="layout-dashboard"></i>总览</button>
+      <button class="tab" data-view="library"><i data-lucide="database"></i>关键词库</button>
+      <button class="tab" data-view="update"><i data-lucide="upload-cloud"></i>周度更新</button>
+      <button class="tab" data-view="xiyou"><i data-lucide="refresh-cw"></i>西柚匹配</button>
+    </nav>
+
+    <main id="view-root"></main>
+  </div>
+
+  <div id="modal-root"></div>
+  <div id="toast-root"></div>
+
+  <script src="vendor/lucide.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

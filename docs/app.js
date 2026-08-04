@@ -1702,6 +1702,13 @@ const READONLY_PASSWORD_HASH = "c47ad772ab8141e427d2982db0fd7060cffad4806d218e87
 async function requireAuth() {
   const gate = document.querySelector("#auth-gate");
   if (!gate) return true;
+  const AUTH_KEY = "hnReadonlyAuthTs";
+  let last = 0;
+  try { last = Number(localStorage.getItem(AUTH_KEY) || 0); } catch {}
+  if (last && Date.now() - last < 24 * 60 * 60 * 1000) {
+    gate.remove();
+    return true;
+  }
   const form = document.querySelector("#auth-form");
   const input = document.querySelector("#auth-pass");
   const err = document.querySelector("#auth-error");
@@ -1714,6 +1721,7 @@ async function requireAuth() {
       e.preventDefault();
       if ((await hash(input.value)) === READONLY_PASSWORD_HASH) {
         gate.remove();
+        try { localStorage.setItem(AUTH_KEY, String(Date.now())); } catch {}
         resolve(true);
       } else {
         if (err) err.hidden = false;

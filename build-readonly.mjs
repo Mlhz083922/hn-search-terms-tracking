@@ -37,7 +37,7 @@ const GATE_HTML = `
     <form id="auth-form" class="auth-box">
       <div class="auth-logo">泳</div>
       <h1>HN Search Terms Tracking</h1>
-      <p>输入访问密码查看数据</p>
+      <p>输入访问密码查看数据 · 24 小时内免重复验证</p>
       <input id="auth-pass" type="password" placeholder="访问密码" autocomplete="current-password">
       <button class="btn primary" type="submit">进入</button>
       <p id="auth-error" class="auth-error" hidden>密码错误，请重试</p>
@@ -215,6 +215,13 @@ function exportCsv() {
 async function requireAuth() {
   const gate = document.querySelector("#auth-gate");
   if (!gate) return true;
+  const AUTH_KEY = "hnReadonlyAuthTs";
+  let last = 0;
+  try { last = Number(localStorage.getItem(AUTH_KEY) || 0); } catch {}
+  if (last && Date.now() - last < 24 * 60 * 60 * 1000) {
+    gate.remove();
+    return true;
+  }
   const form = document.querySelector("#auth-form");
   const input = document.querySelector("#auth-pass");
   const err = document.querySelector("#auth-error");
@@ -227,6 +234,7 @@ async function requireAuth() {
       e.preventDefault();
       if ((await hash(input.value)) === READONLY_PASSWORD_HASH) {
         gate.remove();
+        try { localStorage.setItem(AUTH_KEY, String(Date.now())); } catch {}
         resolve(true);
       } else {
         if (err) err.hidden = false;

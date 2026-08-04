@@ -13,7 +13,7 @@ const state = {
   year: null,
   view: "overview",
   libraryPage: 1,
-  filter: { q: "", category: "", attribute: "", source: "", brands: [], rankMin: "", rankMax: "" },
+  filter: { q: "", categories: [], attributes: [], source: "", brands: [], rankMin: "", rankMax: "" },
   sort: { key: "", dir: 1 },
   overviewBrands: [],
   overviewCategories: [],
@@ -498,8 +498,8 @@ function viewLibrary() {
   const focusSet = new Set(focusBrands.map((b) => String(b).toLowerCase().trim()));
   const q = f.q.toLowerCase();
   const rows = state.db.keywords.filter((k) => {
-    if (f.category && k.categoryWord !== f.category) return false;
-    if (f.attribute && k.attribute !== f.attribute) return false;
+    if (!exactMatches(k.categoryWord, f.categories)) return false;
+    if (!exactMatches(k.attribute, f.attributes)) return false;
     if (f.source && k.source !== f.source) return false;
     if (!brandMatches(k, f.brands)) return false;
     const rmin = f.rankMin === "" || f.rankMin == null ? null : Number(f.rankMin);
@@ -547,8 +547,8 @@ function viewLibrary() {
       <div class="panel">
         <div class="toolbar">
           <div class="search"><i data-lucide="search"></i><input id="lib-q" placeholder="搜索关键词、翻译、品牌..." value="${esc(f.q)}"></div>
-          <select class="select" id="lib-category"><option value="">全部类目词</option>${cats.map((c) => `<option ${c === f.category ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>
-          <select class="select" id="lib-attribute"><option value="">全部属性词</option>${attrs.map((a) => `<option ${a === f.attribute ? "selected" : ""}>${esc(a)}</option>`).join("")}</select>
+          ${multiFilterHtml("类目词", cats, f.categories, "library-cats")}
+          ${multiFilterHtml("属性词", attrs, f.attributes, "library-attrs")}
           ${multiFilterHtml("品牌", state.db.settings?.focusBrands || [], f.brands, "library")}
           <div class="rank-filter" title="按当周 ABA 排名区间筛选">
             <span class="muted sm">当周排名</span>
@@ -867,7 +867,7 @@ function bindViewEvents(root) {
       else if (action === "goto-update") { state.view = "update"; render(); }
       else if (action === "goto-xiyou") { state.view = "xiyou"; render(); }
       else if (action === "load-more") { state.libraryPage += 1; render(); }
-      else if (action === "reset-filters") { state.filter = { q: "", category: "", attribute: "", source: "", brands: [], rankMin: "", rankMax: "" }; state.libraryPage = 1; render(); }
+      else if (action === "reset-filters") { state.filter = { q: "", categories: [], attributes: [], source: "", brands: [], rankMin: "", rankMax: "" }; state.libraryPage = 1; render(); }
       else if (action === "pick-file") $("#file-input").click();
       else if (action === "parse-file") parseFile();
       else if (action === "review-tab") { state.reviewTab = tab; render(); }
@@ -928,6 +928,8 @@ function bindViewEvents(root) {
       if (wrap.dataset.target === "overview-brands") state.overviewBrands = vals;
       else if (wrap.dataset.target === "overview-cats") state.overviewCategories = vals;
       else if (wrap.dataset.target === "overview-attrs") state.overviewAttributes = vals;
+      else if (wrap.dataset.target === "library-cats") state.filter.categories = vals;
+      else if (wrap.dataset.target === "library-attrs") state.filter.attributes = vals;
       else state.filter.brands = vals;
       state.libraryPage = 1;
       render();
@@ -957,7 +959,7 @@ function bindViewEvents(root) {
       }
     }, 220));
   }
-  for (const [sel, key] of [["#lib-category", "category"], ["#lib-attribute", "attribute"], ["#lib-source", "source"]]) {
+  for (const [sel, key] of [["#lib-source", "source"]]) {
     const el = root.querySelector(sel);
     if (el) el.addEventListener("change", () => {
       state.filter[key] = el.value;

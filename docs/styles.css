@@ -107,6 +107,7 @@ a { color: var(--accent-ink); text-decoration: none; }
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .btn:hover { border-color: var(--accent); color: var(--accent-ink); }
+.btn.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn.primary:hover { background: var(--accent-ink); color: #fff; }
 .btn.danger { color: var(--down); }

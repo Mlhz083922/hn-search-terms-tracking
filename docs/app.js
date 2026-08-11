@@ -528,7 +528,7 @@ function sparklineHtml(kid) {
       pen = false;
       continue;
     }
-    const y = H - P - ((p.v - min) / span) * (H - P * 2);
+    const y = P + ((p.v - min) / span) * (H - P * 2);
     path += `${pen ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
     pen = true;
   }

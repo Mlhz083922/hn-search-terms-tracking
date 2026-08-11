@@ -1665,12 +1665,15 @@ function openKeywordModal(kid) {
 
 function trendChartsHtml(kid) {
   const ids = weekIds();
-  const YEAR_STYLE = {
-    "2024": { color: "#98a2b3", name: "24年" },
-    "2025": { color: "#d64045", name: "25年" },
-    "2026": { color: "#0e7f82", name: "26年" },
-  };
-  const yearColor = (y) => YEAR_STYLE[y]?.color || "#7c3aed";
+  const YEAR_PALETTE = ["#d64045", "#2563eb", "#98a2b3", "#0e7f82", "#7c3aed"];
+  const dataYears = [...new Set(ids.map((w) => w.slice(0, 4)))].map(Number).sort((a, b) => b - a);
+  const YEAR_STYLE = Object.fromEntries(
+    dataYears.map((y, i) => [
+      String(y),
+      { color: YEAR_PALETTE[i % YEAR_PALETTE.length], name: `${String(y).slice(2)}年` },
+    ])
+  );
+  const yearColor = (y) => YEAR_STYLE[y]?.color || "#98a2b3";
   const WEEK_TOTAL = 52;
   const weekOfYear = (dateStr) => {
     const d = new Date(`${dateStr}T00:00:00Z`);

@@ -1700,7 +1700,10 @@ function trendChartsHtml(kid) {
     const max = Math.max(...vals);
     const span = Math.max(1e-9, max - min);
     const x = (weekIdx) => padL + (weekIdx / (WEEK_TOTAL - 1)) * (W - padL - padR);
-    const y = (v) => padT + (1 - (v - min) / span) * (H - padT - padB);
+    const y = (v) =>
+      kind === "rank"
+        ? padT + ((v - min) / span) * (H - padT - padB)
+        : padT + (1 - (v - min) / span) * (H - padT - padB);
     const byYear = {};
     for (const p of pts) {
       const yr = p.w.slice(0, 4);
@@ -1785,7 +1788,7 @@ function trendChartsHtml(kid) {
     </svg>`;
   };
   return `<div class="chart-grid">
-    <div class="chart-box"><div class="chart-title">ABA 排名趋势（对数刻度 · 同周对齐按年分线）</div>${mk("rank")}</div>
+    <div class="chart-box"><div class="chart-title">ABA 排名趋势（对数刻度 · 同周对齐按年分线 · 排名越小越靠上）</div>${mk("rank")}</div>
     <div class="chart-box"><div class="chart-title">搜索量趋势（同周对齐按年分线）</div>${mk("volume")}</div>
   </div>
   <div class="chart-readout" id="chart-readout"></div>`;

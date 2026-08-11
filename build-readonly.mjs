@@ -86,7 +86,8 @@ let patchedHtml = html
   .replace(
     "<p id=\"site-label\">亚马逊美国站 · 周度更新</p>",
     "<p id=\"site-label\">亚马逊美国站 · HN Search Terms Tracking · 只读快照</p>"
-  );
+  )
+  .replace(/\s*<button id="btn-update-team-link"[\s\S]*?<\/button>/, "");
 patchedHtml = patchedHtml.replace("<body>", "<body>" + GATE_HTML);
 await fs.writeFile(path.join(siteDir, "index.html"), patchedHtml, "utf8");
 

@@ -798,6 +798,7 @@ function viewUpdate() {
           </div>
           <div class="hstack">
             ${tab === "candidate" ? `<button class="btn" data-action="bulk-candidate-include"><i data-lucide="check"></i>候选全部收录</button>` : ""}
+            ${tab === "candidate" ? `<button class="btn danger" data-action="bulk-candidate-exclude"><i data-lucide="x-circle"></i>候选全部排除</button>` : ""}
             ${tab === "exclude" ? `<button class="btn" data-action="bulk-exclude-candidate"><i data-lucide="rotate-ccw"></i>转回待确认</button>` : ""}
             <button class="btn" data-action="save-review"><i data-lucide="save"></i>保存筛选结果</button>
           </div>
@@ -963,6 +964,7 @@ function bindViewEvents(root) {
       else if (action === "review-more") { state.reviewLimit += 500; render(); }
       else if (action === "set-status") setRowStatus(term, status);
       else if (action === "bulk-candidate-include") bulkStatus("candidate", "include");
+      else if (action === "bulk-candidate-exclude") bulkCandidateExclude();
       else if (action === "bulk-exclude-candidate") bulkStatus("exclude", "candidate");
       else if (action === "save-review") saveReview();
       else if (action === "discard-draft") discardDraft();
@@ -1219,6 +1221,86 @@ function bulkStatus(from, to) {
   const d = state.draft;
   for (const r of d.rows) if (r.status === from) r.status = to;
   render();
+}
+
+function bulkCandidateExclude() {
+  const d = state.draft;
+  const n = d.rows.filter((r) => r.status === "candidate").length;
+  if (!n) return;
+  if (!confirm(`确认将 ${n} 个待确认词全部排除？可在「已排除」页一键转回待确认。`)) return;
+  bulkStatus("candidate", "exclude");
+  toast(`已将 ${n} 个待确认词移入排除`, "success");
+}
+
+const TEAM_LINK_URL = "https://Mlhz083922.github.io/hn-search-terms-tracking/";
+
+async function updateTeamLink() {
+  const btn = $("#btn-update-team-link");
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader-2"></i>更新中...';
+    initIcons(btn);
+  }
+  try {
+    const res = await api("/api/team-link/update", { method: "POST", body: "{}" });
+    toast(res.message || "团队链接已更新", "success");
+    showTeamLinkModal(res);
+  } catch (err) {
+    toast(err.message, "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="link-2"></i><span>更新团队链接</span>';
+      initIcons(btn);
+    }
+  }
+}
+
+function showTeamLinkModal(res) {
+  const link = res.link || TEAM_LINK_URL;
+  const modal = document.createElement("div");
+  modal.className = "modal-backdrop";
+  modal.innerHTML = `
+    <div class="modal" style="width:min(560px,100%)">
+      <div class="modal-head">
+        <h3>团队链接</h3>
+        <button class="icon-btn" data-close title="关闭"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <p class="muted">${esc(res.message || "")}</p>
+        <p><a href="${esc(link)}" target="_blank" rel="noopener">${esc(link)}</a></p>
+        ${res.log?.length ? `<details class="publish-details">
+          <summary>查看更新日志</summary>
+          <pre class="publish-log">${esc(res.log.join("\n\n"))}</pre>
+        </details>` : ""}
+      </div>
+      <div class="modal-foot">
+        <button class="btn" data-action="copy-team-link"><i data-lucide="copy"></i>复制链接</button>
+        <button class="btn primary" data-action="open-team-link"><i data-lucide="external-link"></i>打开链接</button>
+        <button class="btn" data-close>关闭</button>
+      </div>
+    </div>`;
+  $("#modal-root").appendChild(modal);
+  initIcons(modal);
+  modal.querySelectorAll("input, select").forEach((el) => (el.disabled = true));
+  const readOnlySave = modal.querySelector("#save-keyword");
+  if (readOnlySave) readOnlySave.hidden = true;
+  modal.querySelector('[data-action="copy-team-link"]')?.addEventListener("click", () => {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(link)
+        .then(() => toast("团队链接已复制", "success"))
+        .catch(() => toast("复制失败，请手动复制", "error"));
+    } else {
+      toast("当前浏览器不支持自动复制，请手动复制", "error");
+    }
+  });
+  modal.querySelector('[data-action="open-team-link"]')?.addEventListener("click", () => {
+    window.open(link, "_blank", "noopener");
+  });
+  modal.querySelectorAll("[data-close]").forEach((el) => el.addEventListener("click", () => modal.remove()));
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) modal.remove();
+  });
 }
 
 async function saveReview() {
@@ -1536,9 +1618,6 @@ function openKeywordModal(kid) {
   });
   $("#modal-root").appendChild(modal);
   initIcons(modal);
-  modal.querySelectorAll("input, select").forEach((el) => (el.disabled = true));
-  const readOnlySave = modal.querySelector("#save-keyword");
-  if (readOnlySave) readOnlySave.hidden = true;
   if (kw) {
     const readout = modal.querySelector("#chart-readout");
     if (readout) {
@@ -1785,6 +1864,8 @@ function exportCsv() {
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+$("#btn-update-team-link")?.addEventListener("click", updateTeamLink);
 
 const READONLY_PASSWORD_HASH = "c47ad772ab8141e427d2982db0fd7060cffad4806d218e87d3644fccaf07a461";
 

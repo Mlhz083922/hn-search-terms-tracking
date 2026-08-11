@@ -55,7 +55,7 @@ a { color: var(--accent-ink); text-decoration: none; }
 }
 .brand h1 { margin: 0; font-size: 18px; line-height: 1.3; letter-spacing: 0; }
 .brand p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
-.topbar-right { display: flex; align-items: center; gap: 10px; }
+.topbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .week-picker {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   background: var(--panel);
@@ -393,6 +393,21 @@ button.chip { font: inherit; cursor: pointer; }
 .icon-btn:hover { background: var(--panel-soft); color: var(--ink); }
 .icon-btn.danger:hover { background: var(--down-soft); color: var(--down); border-color: #f3c6c7; }
 .icon-btn svg { width: 16px; height: 16px; }
+
+.publish-details summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+.publish-log {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin: 10px 0 0;
+  max-height: 260px;
+  overflow: auto;
+  color: var(--ink-2);
+}
 
 .chart-readout {
   margin: 10px 2px 0;

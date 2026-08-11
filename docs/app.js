@@ -357,7 +357,7 @@ function viewOverview() {
 
   const stats = [
     { label: "词库词数", value: fmt(filtered.length), icon: "database", extra: `共 ${state.db.keywords.length} 条词库 · 白名单品牌 ${focusCount} 词` },
-    { label: "当周上榜", value: fmt(ranked.length), icon: "trending-up", extra: rankedPrev == null ? "" : ranked.length - rankedPrev > 0 ? `<span class="up">+${ranked.length - rankedPrev}</span> 较上周边化` : ranked.length - rankedPrev < 0 ? `<span class="down">${ranked.length - rankedPrev}</span> 较上周边化` : "与上周持平" },
+    { label: "当周上榜", value: fmt(ranked.length), icon: "trending-up", extra: rankedPrev == null ? "" : ranked.length - rankedPrev > 0 ? `<span class="up">+${ranked.length - rankedPrev}</span> 较上周变化` : ranked.length - rankedPrev < 0 ? `<span class="down">${ranked.length - rankedPrev}</span> 较上周变化` : "与上周持平" },
     { label: "搜索量已匹配", value: fmt(volMatched), icon: "search", extra: weekHasVol ? `覆盖率 ${filtered.length ? Math.round((volMatched / filtered.length) * 100) : 0}%` : "西柚数据待更新（预计周三）" },
     { label: "本周新增", value: fmt(newlyAdded), icon: "plus-circle", extra: newWeeks > 0 ? "当前周后仍有新周期" : "当前为最新数据周" },
     { label: "当周周期", value: esc(weekLabel(wid)), icon: "calendar", extra: state.db.weeks[wid]?.volumeSource === "xiyou" ? "搜索量来自西柚" : weekHasVol ? "搜索量来自人工登记" : "搜索量待西柚更新" },
@@ -375,6 +375,7 @@ function viewOverview() {
           ${multiFilterHtml("品牌", focusBrands, state.overviewBrands, "overview-brands")}
           ${multiFilterHtml("类目词", cats, state.overviewCategories, "overview-cats")}
           ${multiFilterHtml("属性词", attrs, state.overviewAttributes, "overview-attrs")}
+          <button class="btn" data-action="view-weekly-new"><i data-lucide="plus-circle"></i>查看周度新增词</button>
         </div>
       </div>
       <div class="grid-stats">
@@ -535,6 +536,92 @@ function sparklineHtml(kid) {
   return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
     <path d="${path}" fill="none" stroke="#0e7f82" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></path>
   </svg>`;
+}
+
+function viewWeeklyNewModal() {
+  const wid = state.weekId;
+  const all = state.db.keywords
+    .filter((k) => k.firstSeenWeek === wid)
+    .map((k) => ({ k, rank: rankOf(k.id, wid) }))
+    .sort((a, b) => (a.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? Number.MAX_SAFE_INTEGER));
+  let query = "";
+  let limit = 200;
+  const modal = document.createElement("div");
+  modal.className = "modal-backdrop";
+  modal.innerHTML = `
+    <div class="modal" style="width:min(920px,100%)">
+      <div class="modal-head">
+        <h3>周度新增词 · ${esc(weekLabel(wid))}</h3>
+        <button class="icon-btn" data-close title="关闭"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="hstack">
+          <div class="search" style="flex:1"><i data-lucide="search"></i><input id="weekly-new-q" placeholder="搜索关键词、翻译、品牌..." value=""></div>
+          <span class="kbd-hint" id="weekly-new-count"></span>
+        </div>
+        <div class="table-wrap" id="weekly-new-body" style="max-height:480px"></div>
+        <div class="pager" style="justify-content:center"><button class="btn" id="weekly-new-more"><i data-lucide="chevron-down"></i>显示更多</button></div>
+      </div>
+      <div class="modal-foot"><button class="btn" data-close>关闭</button></div>
+    </div>`;
+  $("#modal-root").appendChild(modal);
+  initIcons(modal);
+  modal.querySelectorAll("input, select").forEach((el) => (el.disabled = true));
+  const readOnlySave = modal.querySelector("#save-keyword");
+  if (readOnlySave) readOnlySave.hidden = true;
+
+  const render = () => {
+    const q = query.trim().toLowerCase();
+    const rows = all.filter((x) =>
+      !q ||
+      [x.k.keyword, x.k.translation, x.k.brand, x.k.categoryWord, x.k.attribute].some((s) => String(s || "").toLowerCase().includes(q))
+    );
+    const shown = rows.slice(0, limit);
+    const body = modal.querySelector("#weekly-new-body");
+    body.innerHTML = shown.length
+      ? `<table class="data">
+          <thead><tr>
+            <th>关键词</th><th>翻译</th><th>品牌</th><th>类目词</th><th>属性词</th><th class="num">当周排名</th><th class="num">当周搜索量</th>
+          </tr></thead>
+          <tbody>${shown.map(({ k, rank }) => `
+            <tr class="clickable" data-id="${k.id}">
+              <td class="kw-cell"><div class="main">${esc(k.keyword)}</div><div class="sub">${k.source === "weekly" ? "周度导入" : "手动登记"}</div></td>
+              <td>${esc(k.translation || "—")}</td>
+              <td>${esc(k.brand || "—")}</td>
+              <td>${esc(k.categoryWord || "—")}</td>
+              <td>${esc(k.attribute || "—")}</td>
+              <td class="num">${rankBadge(rank)}</td>
+              <td class="num">${fmt(volOf(k.id, wid))}</td>
+            </tr>`).join("")}</tbody>
+        </table>`
+      : '<div class="empty">没有匹配的周度新增词</div>';
+    const more = modal.querySelector("#weekly-new-more");
+    more.hidden = shown.length >= rows.length || rows.length <= 200;
+    more.innerHTML = `<i data-lucide="chevron-down"></i>显示更多（已显示 ${fmt(shown.length)} / ${fmt(rows.length)} 条）`;
+    initIcons(more);
+    const count = modal.querySelector("#weekly-new-count");
+    count.textContent = `共 ${fmt(all.length)} 词 · 已显示 ${fmt(shown.length)} / ${fmt(rows.length)}`;
+  };
+
+  render();
+  modal.querySelector("#weekly-new-q").addEventListener("input", debounce((e) => {
+    query = e.target.value;
+    limit = 200;
+    render();
+  }, 200));
+  modal.querySelector("#weekly-new-more").addEventListener("click", () => {
+    limit += 200;
+    render();
+  });
+  modal.querySelectorAll("[data-close]").forEach((el) => el.addEventListener("click", () => modal.remove()));
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) modal.remove();
+    const tr = e.target.closest("tr[data-id]");
+    if (tr) {
+      modal.remove();
+      openKeywordModal(tr.dataset.id);
+    }
+  });
 }
 
 function emptyRow(cols, text) {
@@ -956,6 +1043,7 @@ function bindViewEvents(root) {
       else if (action === "add-keyword") openKeywordModal();
       else if (action === "goto-update") { state.view = "update"; render(); }
       else if (action === "goto-xiyou") { state.view = "xiyou"; render(); }
+      else if (action === "view-weekly-new") viewWeeklyNewModal();
       else if (action === "load-more") { state.libraryPage += 1; render(); }
       else if (action === "reset-filters") { state.filter = { q: "", categories: [], attributes: [], source: "", brands: [], rankMin: "", rankMax: "" }; state.libraryPage = 1; render(); }
       else if (action === "pick-file") $("#file-input").click();
@@ -1282,9 +1370,6 @@ function showTeamLinkModal(res) {
     </div>`;
   $("#modal-root").appendChild(modal);
   initIcons(modal);
-  modal.querySelectorAll("input, select").forEach((el) => (el.disabled = true));
-  const readOnlySave = modal.querySelector("#save-keyword");
-  if (readOnlySave) readOnlySave.hidden = true;
   modal.querySelector('[data-action="copy-team-link"]')?.addEventListener("click", () => {
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(link)

@@ -13,7 +13,7 @@ const state = {
   year: null,
   view: "overview",
   libraryPage: 1,
-  filter: { q: "", categories: [], attributes: [], source: "", brands: [], rankMin: "", rankMax: "" },
+  filter: { q: "", categories: [], attributes: [], source: "", brands: [], rankMin: "", rankMax: "", weeklyNew: false },
   sort: { key: "", dir: 1 },
   overviewBrands: [],
   overviewCategories: [],
@@ -595,6 +595,7 @@ function viewLibrary() {
     if (!exactMatches(k.categoryWord, f.categories)) return false;
     if (!exactMatches(k.attribute, f.attributes)) return false;
     if (f.source && k.source !== f.source) return false;
+    if (f.weeklyNew && k.firstSeenWeek !== state.weekId) return false;
     if (!brandMatches(k, f.brands)) return false;
     const rmin = f.rankMin === "" || f.rankMin == null ? null : Number(f.rankMin);
     const rmax = f.rankMax === "" || f.rankMax == null ? null : Number(f.rankMax);
@@ -644,6 +645,9 @@ function viewLibrary() {
           ${multiFilterHtml("类目词", cats, f.categories, "library-cats")}
           ${multiFilterHtml("属性词", attrs, f.attributes, "library-attrs")}
           ${multiFilterHtml("品牌", state.db.settings?.focusBrands || [], f.brands, "library")}
+          <button class="btn ${f.weeklyNew ? "active" : ""}" data-action="toggle-library-weekly-new" title="仅显示当周首次出现的新增词">
+            <i data-lucide="filter"></i>周度新增
+          </button>
           <div class="rank-filter" title="按当周 ABA 排名区间筛选">
             <span class="muted sm">当周排名</span>
             <input type="number" id="lib-rank-min" min="1" step="1" placeholder="最小" value="${esc(f.rankMin)}">
@@ -963,7 +967,8 @@ function bindViewEvents(root) {
       else if (action === "goto-xiyou") { state.view = "xiyou"; render(); }
       else if (action === "toggle-weekly-new") { state.overviewWeeklyNew = !state.overviewWeeklyNew; render(); }
       else if (action === "load-more") { state.libraryPage += 1; render(); }
-      else if (action === "reset-filters") { state.filter = { q: "", categories: [], attributes: [], source: "", brands: [], rankMin: "", rankMax: "" }; state.libraryPage = 1; render(); }
+      else if (action === "reset-filters") { state.filter = { q: "", categories: [], attributes: [], source: "", brands: [], rankMin: "", rankMax: "", weeklyNew: false }; state.libraryPage = 1; render(); }
+      else if (action === "toggle-library-weekly-new") { state.filter.weeklyNew = !state.filter.weeklyNew; state.libraryPage = 1; render(); }
       else if (action === "pick-file") $("#file-input").click();
       else if (action === "parse-file") parseFile();
       else if (action === "review-tab") { state.reviewTab = tab; render(); }

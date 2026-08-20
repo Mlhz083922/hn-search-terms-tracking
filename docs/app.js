@@ -1245,20 +1245,75 @@ function bulkCandidateExclude() {
 
 const TEAM_LINK_URL = "https://Mlhz083922.github.io/hn-search-terms-tracking/";
 
+function ensureTeamProgress() {
+  let box = $("#team-update-progress");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "team-update-progress";
+    box.className = "team-update-progress";
+    box.hidden = true;
+    box.innerHTML = `
+      <div class="hstack">
+        <span id="team-update-label">准备更新...</span>
+        <span id="team-update-pct">0%</span>
+      </div>
+      <div class="progress"><i id="team-update-bar" style="width:0%"></i></div>`;
+    const header = document.querySelector("header");
+    if (header && header.nextSibling) header.parentNode.insertBefore(box, header.nextSibling);
+    else document.body.prepend(box);
+  }
+  return box;
+}
+
+function setTeamProgress(pct, message) {
+  const bar = $("#team-update-bar");
+  const pctEl = $("#team-update-pct");
+  const label = $("#team-update-label");
+  if (bar) bar.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+  if (pctEl) pctEl.textContent = `${Math.round(pct)}%`;
+  if (label && message) label.textContent = message;
+}
+
+async function pollTeamJob(jobId) {
+  const box = ensureTeamProgress();
+  box.hidden = false;
+  for (;;) {
+    const job = await api("/api/team-link/status");
+    if (!job || job.id !== jobId) {
+      await new Promise((r) => setTimeout(r, 1000));
+      continue;
+    }
+    setTeamProgress(job.progress || 0, job.message || job.stage || "更新中...");
+    if (job.done) {
+      if (!job.ok) throw new Error(job.error || "更新失败");
+      return job;
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+}
+
 async function updateTeamLink() {
   const btn = $("#btn-update-team-link");
+  const box = ensureTeamProgress();
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = '<i data-lucide="loader-2"></i>更新中...';
+    btn.innerHTML = '<i data-lucide="loader-2"></i><span>更新中...</span>';
     initIcons(btn);
   }
+  box.hidden = false;
+  setTeamProgress(0, "正在创建更新任务...");
   try {
     const res = await api("/api/team-link/update", { method: "POST", body: "{}" });
-    toast(res.message || "团队链接已更新", "success");
-    showTeamLinkModal(res);
+    const jobId = res.jobId || (res.job && res.job.id);
+    if (!jobId) throw new Error(res.error || "无法获取更新任务");
+    const job = await pollTeamJob(jobId);
+    setTeamProgress(100, job.message || "更新完成");
+    toast(job.message || "团队链接已更新", "success");
+    showTeamLinkModal({ ...job, link: TEAM_LINK_URL });
   } catch (err) {
     toast(err.message, "error");
   } finally {
+    setTimeout(() => { box.hidden = true; }, 1200);
     if (btn) {
       btn.disabled = false;
       btn.innerHTML = '<i data-lucide="link-2"></i><span>更新团队链接</span>';

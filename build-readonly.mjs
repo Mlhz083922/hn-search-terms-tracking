@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { gzipSync } from "node:zlib";
+import { createHash } from "node:crypto";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const appDir = process.env.TRACKER_APP_DIR || "/Users/lynn/Desktop/AGENTS/Codex/泳装关键词跟踪";
@@ -93,7 +94,9 @@ await fs.writeFile(path.join(siteDir, "index.html"), patchedHtml, "utf8");
 
 const db = await loadDB({ force: true });
 const stateJson = JSON.stringify(db);
-await fs.writeFile(path.join(dataDir, "state.json.gz"), gzipSync(stateJson));
+const stateGz = gzipSync(stateJson);
+const stateVersion = createHash("sha256").update(stateGz).digest("hex").slice(0, 12);
+await fs.writeFile(path.join(dataDir, "state.json.gz"), stateGz);
 await fs.rm(path.join(dataDir, "state.json"), { force: true });
 
 const js = await fs.readFile(path.join(appDir, "public", "app.js"), "utf8");
@@ -116,7 +119,7 @@ const patchedJs = js
   return fetchStateWithProgress();
 }
 
-const STATE_KEY = "hnStateCache";
+const STATE_KEY = "hnStateCache-${stateVersion}";
 
 function openStateDb() {
   return new Promise((resolve, reject) => {

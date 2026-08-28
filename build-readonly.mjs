@@ -5,7 +5,8 @@ import { gzipSync } from "node:zlib";
 import { createHash } from "node:crypto";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-const appDir = process.env.TRACKER_APP_DIR || "/Users/lynn/Desktop/AGENTS/Codex/泳装关键词跟踪";
+const workbenchDir = process.env.HOTSEARCH_WORKBENCH_DIR || "/Users/lynn/Desktop/AGENTS/Codex/亚马逊运营工作台";
+const appDir = path.join(workbenchDir, "public", "hotsearch");
 const siteDir = path.join(root, "docs");
 const dataDir = path.join(siteDir, "data");
 const vendorDir = path.join(siteDir, "vendor");
@@ -61,7 +62,7 @@ const GATE_HTML = `
   <div id="load-status" class="load-status" hidden></div>`;
 
 const { loadDB } = await import(
-  pathToFileURL(path.join(appDir, "lib", "store.mjs")).href
+  pathToFileURL(path.join(workbenchDir, "hotsearch-lib", "store.mjs")).href
 );
 
 await fs.mkdir(dataDir, { recursive: true });
@@ -71,12 +72,13 @@ async function copy(name, from, to) {
   await fs.copyFile(path.join(appDir, from, name), path.join(siteDir, to || name));
 }
 
-const css = await fs.readFile(path.join(appDir, "public", "styles.css"), "utf8");
+const css = await fs.readFile(path.join(appDir, "styles.css"), "utf8");
 await fs.writeFile(path.join(siteDir, "styles.css"), css + GATE_CSS, "utf8");
-await copy("lucide.min.js", "public/vendor", "vendor/lucide.min.js");
+await copy("lucide.min.js", "vendor", "vendor/lucide.min.js");
 
-const html = await fs.readFile(path.join(appDir, "public", "index.html"), "utf8");
+const html = await fs.readFile(path.join(appDir, "index.html"), "utf8");
 let patchedHtml = html
+  .replace(/<!-- HOTSEARCH_API_BASE_START -->[\s\S]*?<!-- HOTSEARCH_API_BASE_END -->\s*/g, "")
   .replace(
     "<title>女装泳装周度热搜词追踪</title>",
     "<title>HN Search Terms Tracking · 女装泳装热搜词追踪</title>"
@@ -99,7 +101,7 @@ const stateVersion = createHash("sha256").update(stateGz).digest("hex").slice(0,
 await fs.writeFile(path.join(dataDir, "state.json.gz"), stateGz);
 await fs.rm(path.join(dataDir, "state.json"), { force: true });
 
-const js = await fs.readFile(path.join(appDir, "public", "app.js"), "utf8");
+const js = await fs.readFile(path.join(appDir, "app.js"), "utf8");
 const patchedJs = js
   .replace(
     `async function api(path, options = {}) {

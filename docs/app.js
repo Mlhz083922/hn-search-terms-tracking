@@ -13,11 +13,11 @@ const state = {
   year: null,
   view: "overview",
   libraryPage: 1,
-  filter: { q: "", categories: [], attributes: [], source: "", brands: [], rankMin: "", rankMax: "", weeklyNew: false },
+  filter: { q: "", categories: [], attributes: [], tags: [], source: "", brands: [], rankMin: "", rankMax: "", weeklyNew: false },
   sort: { key: "", dir: 1 },
   overviewBrands: [],
   overviewCategories: [],
-  overviewAttributes: [],
+  overviewTags: [],
   overviewWeeklyNew: false,
   volFromWeek: null,
   volToWeek: null,
@@ -59,6 +59,7 @@ function brandMatches(k, brands) {
 
 function multiFilterHtml(label, options, selected, target) {
   const n = (selected || []).length;
+  const items = options.map((o) => (typeof o === "string" ? { value: o, label: o } : o));
   return `
     <div class="multi-filter" data-multi data-target="${target}">
       <button class="btn" type="button" data-multi-toggle>
@@ -74,10 +75,10 @@ function multiFilterHtml(label, options, selected, target) {
           </span>
         </div>
         <div class="multi-list">
-          ${options.map((b) => `
+          ${items.map((b) => `
             <label class="multi-item">
-              <input type="checkbox" value="${esc(b)}" ${(selected || []).includes(b) ? "checked" : ""}>
-              <span>${esc(b)}</span>
+              <input type="checkbox" value="${esc(b.value)}" ${(selected || []).includes(b.value) ? "checked" : ""}>
+              <span>${esc(b.label)}</span>
             </label>`).join("")}
         </div>
         <div class="multi-pop-foot">
@@ -90,6 +91,82 @@ function multiFilterHtml(label, options, selected, target) {
 function exactMatches(value, selected) {
   if (!selected || !selected.length) return true;
   return selected.includes(value || "");
+}
+
+const TAG_DIMS = ["版型", "图案", "功能", "码段", "面料", "风格", "细节"];
+const TAG_SUGGESTIONS = {
+  "版型": ["高腰", "中腰", "低腰", "挂脖", "无肩带", "抹胸", "一字肩", "深V", "镂空", "运动背心", "交叉背", "平角裤", "丁字裤", "高叉", "全覆盖", "抽褶", "褶皱", "三角", "修身"],
+  "图案": ["纯色", "碎花", "条纹", "波点", "豹纹", "动物纹", "佩斯利", "几何", "抽象", "扎染", "格纹", "撞色", "印花"],
+  "功能": ["收腹", "显瘦", "聚拢", "支撑", "钢圈", "防晒", "速干", "耐氯", "胸垫", "可拆卸胸垫", "可调节肩带", "无钢圈", "内衬", "保守", "防滑", "吸湿排汗", "无痕"],
+  "码段": ["大码", "孕妇", "小码", "青少年", "高个子", "标准码"],
+  "面料": ["棉", "网纱", "尼龙", "氨纶", "涤纶", "莱卡", "再生", "环保", "罗纹", "哑光", "光泽"],
+  "风格": ["复古", "性感", "运动", "潮流", "极简", "波西米亚", "柔美", "经典", "优雅", "年轻感"],
+  "细节": ["侧系带", "蝴蝶结", "蕾丝", "荷叶边", "流苏", "拉链", "抽绳", "透视", "链条", "圆环", "多带", "撞色滚边"],
+};
+
+function tagEntries(kw) {
+  const out = [];
+  for (const dim of TAG_DIMS) {
+    const vals = (kw && kw.tags && kw.tags[dim]) || [];
+    for (const v of vals) if (v) out.push({ dim, value: String(v) });
+  }
+  return out;
+}
+
+function tagsChipsHtml(kw) {
+  const entries = tagEntries(kw);
+  if (!entries.length) return '<span class="muted">—</span>';
+  return `<span class="tag-chips">${entries.map((e) => `<span class="chip" title="${esc(e.dim)}">${esc(e.dim)}:${esc(e.value)}</span>`).join("")}</span>`;
+}
+
+function tagsMatch(kw, selected) {
+  if (!selected || !selected.length) return true;
+  const vals = new Set(tagEntries(kw).map((e) => e.value));
+  return selected.some((v) => vals.has(v));
+}
+
+function tagsText(kw) {
+  return tagEntries(kw).map((e) => `${e.dim}${e.value}`).join(" ");
+}
+
+function tagValuesFrom(kws) {
+  const counts = new Map();
+  for (const k of kws) {
+    for (const e of tagEntries(k)) {
+      counts.set(e.value, (counts.get(e.value) || 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .map(([value, count]) => ({ value, label: `${value} (${count})`, count }))
+    .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value, "zh-CN"));
+}
+
+function sortCategories(list) {
+  return [...list].sort((a, b) => {
+    if (a === "General") return 1;
+    if (b === "General") return -1;
+    return a.localeCompare(b, "zh-CN");
+  });
+}
+
+function tagInputsHtml(kw) {
+  return TAG_DIMS.map((dim) => {
+    const cur = ((kw && kw.tags && kw.tags[dim]) || []).join(", ");
+    return `<div class="field"><label>${esc(dim)}</label>
+      <input data-tag-dim="${esc(dim)}" list="tag-list-${esc(dim)}" value="${esc(cur)}" placeholder="多值用逗号分隔">
+      <datalist id="tag-list-${esc(dim)}">${(TAG_SUGGESTIONS[dim] || []).map((v) => `<option value="${esc(v)}">`).join("")}</datalist>
+    </div>`;
+  }).join("");
+}
+
+function readTagInputs(root) {
+  const tags = {};
+  root.querySelectorAll("[data-tag-dim]").forEach((input) => {
+    const dim = input.dataset.tagDim;
+    const vals = input.value.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
+    if (vals.length) tags[dim] = [...new Set(vals)];
+  });
+  return tags;
 }
 
 function rankOf(kid, wid) {
@@ -154,85 +231,19 @@ function toast(msg, type = "info") {
   }, 3200);
 }
 
+function apiUrl(path) {
+  const base = window.HOTSEARCH_API_BASE || "";
+  return base ? base + path.replace(/^\/api/, "") : path;
+}
+
 async function api(path, options = {}) {
-  const method = String(options.method || "GET").toUpperCase();
-  if (method !== "GET" || path !== "/api/state") {
-    throw new Error("只读版本：此操作已禁用，仅提供查看");
-  }
-  return fetchStateWithProgress();
-}
-
-const STATE_KEY = "hnStateCache-7b0e60d53d13";
-
-function openStateDb() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open("hnSearchTerms", 1);
-    req.onupgradeneeded = () => req.result.createObjectStore("state");
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+  const resp = await fetch(apiUrl(path), {
+    headers: { "content-type": "application/json" },
+    ...options,
   });
-}
-
-async function stateCacheGet() {
-  try {
-    const db = await openStateDb();
-    return await new Promise((resolve) => {
-      const tx = db.transaction("state", "readonly");
-      const req = tx.objectStore("state").get(STATE_KEY);
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => resolve(null);
-    });
-  } catch {
-    return null;
-  }
-}
-
-async function stateCacheSet(value) {
-  try {
-    const db = await openStateDb();
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction("state", "readwrite");
-      tx.objectStore("state").put(value, STATE_KEY);
-      tx.oncomplete = resolve;
-      tx.onerror = () => reject(tx.error);
-    });
-  } catch {}
-}
-
-function showLoadProgress(text) {
-  const el = document.querySelector("#load-status");
-  if (!el) return;
-  el.hidden = false;
-  el.textContent = text;
-}
-
-async function fetchStateWithProgress() {
-  const resp = await fetch("./data/state.json.gz");
-  if (!resp.ok) throw new Error(`数据快照加载失败 ${resp.status}`);
-  const enc = (resp.headers.get("Content-Encoding") || "").toLowerCase();
-  if (enc.includes("gzip")) return resp.json();
-  const total = Number(resp.headers.get("Content-Length") || 0);
-  const reader = resp.body.getReader();
-  const chunks = [];
-  let received = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    received += value.length;
-    if (total) {
-      const pct = Math.min(100, Math.round((received / total) * 100));
-      showLoadProgress(`数据加载中 ${pct}%，约 ${(received / 1048576).toFixed(1)} MB / ${(total / 1048576).toFixed(1)} MB`);
-    }
-  }
-  const buf = new Uint8Array(received);
-  let off = 0;
-  for (const c of chunks) {
-    buf.set(c, off);
-    off += c.length;
-  }
-  const stream = new Response(buf).body.pipeThrough(new DecompressionStream("gzip"));
-  return new Response(stream).json();
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(data.error || `请求失败 ${resp.status}`);
+  return data;
 }
 
 async function loadDB() {
@@ -312,12 +323,12 @@ function viewOverview() {
     (state.db.settings?.focusBrands || []).map((b) => String(b).toLowerCase().trim())
   );
   const focusBrands = state.db.settings?.focusBrands || [];
-  const cats = [...new Set(active.map((k) => k.categoryWord).filter(Boolean))].sort();
-  const attrs = [...new Set(active.map((k) => k.attribute).filter(Boolean))].sort();
+  const cats = sortCategories([...new Set(active.map((k) => k.categoryWord).filter(Boolean))]);
+  const tagVals = tagValuesFrom(active);
   const filtered = active.filter((k) =>
     brandMatches(k, state.overviewBrands) &&
     exactMatches(k.categoryWord, state.overviewCategories) &&
-    exactMatches(k.attribute, state.overviewAttributes) &&
+    tagsMatch(k, state.overviewTags) &&
     (!state.overviewWeeklyNew || k.firstSeenWeek === wid)
   );
   const focusCount = filtered.filter((k) => focusSet.has(String(k.brand || "").toLowerCase().trim())).length;
@@ -376,7 +387,7 @@ function viewOverview() {
         <div class="view-actions">
           ${multiFilterHtml("品牌", focusBrands, state.overviewBrands, "overview-brands")}
           ${multiFilterHtml("类目词", cats, state.overviewCategories, "overview-cats")}
-          ${multiFilterHtml("属性词", attrs, state.overviewAttributes, "overview-attrs")}
+          ${multiFilterHtml("属性标签", tagVals, state.overviewTags, "overview-tags")}
           <button class="btn ${state.overviewWeeklyNew ? "active" : ""}" data-action="toggle-weekly-new" title="仅显示当周首次出现的新增词">
             <i data-lucide="filter"></i>周度新增
           </button>
@@ -412,7 +423,7 @@ function viewOverview() {
                     <td>${rankBadge(rank)}</td>
                     <td class="kw-cell"><div class="main">${esc(k.keyword)}</div><div class="sub">${esc(k.translation)}${k.source === "weekly" ? '<span class="tag">周度导入</span>' : ""}</div></td>
                     <td>${esc(k.categoryWord || "—")}</td>
-                    <td>${esc(k.attribute || "—")}</td>
+                    <td><div>${esc(k.attribute || "—")}</div>${tagsChipsHtml(k)}</td>
                     <td class="num"><strong>${fmt(v)}</strong></td>
                     <td class="num">${volumeDeltaHtml(pv, v)}</td>
                     <td class="num">${deltaHtml(p, rank)}</td>
@@ -586,14 +597,14 @@ function sortableTh(key, label, num = false) {
 
 function viewLibrary() {
   const f = state.filter;
-  const cats = [...new Set(state.db.keywords.map((k) => k.categoryWord).filter(Boolean))].sort();
-  const attrs = [...new Set(state.db.keywords.map((k) => k.attribute).filter(Boolean))].sort();
+  const cats = sortCategories([...new Set(state.db.keywords.map((k) => k.categoryWord).filter(Boolean))]);
+  const tagVals = tagValuesFrom(state.db.keywords);
   const focusBrands = state.db.settings?.focusBrands || [];
   const focusSet = new Set(focusBrands.map((b) => String(b).toLowerCase().trim()));
   const q = f.q.toLowerCase();
   const rows = state.db.keywords.filter((k) => {
     if (!exactMatches(k.categoryWord, f.categories)) return false;
-    if (!exactMatches(k.attribute, f.attributes)) return false;
+    if (!tagsMatch(k, f.tags)) return false;
     if (f.source && k.source !== f.source) return false;
     if (f.weeklyNew && k.firstSeenWeek !== state.weekId) return false;
     if (!brandMatches(k, f.brands)) return false;
@@ -606,7 +617,7 @@ function viewLibrary() {
       if (rmax != null && r > rmax) return false;
     }
     if (!q) return true;
-    return [k.keyword, k.translation, k.brand, k.categoryWord, k.attribute].some((s) => String(s || "").toLowerCase().includes(q));
+    return [k.keyword, k.translation, k.brand, k.categoryWord, k.attribute, tagsText(k)].some((s) => String(s || "").toLowerCase().includes(q));
   });
   if (state.sort.key) {
     rows.sort((a, b) => {
@@ -643,7 +654,7 @@ function viewLibrary() {
         <div class="toolbar">
           <div class="search"><i data-lucide="search"></i><input id="lib-q" placeholder="搜索关键词、翻译、品牌..." value="${esc(f.q)}"></div>
           ${multiFilterHtml("类目词", cats, f.categories, "library-cats")}
-          ${multiFilterHtml("属性词", attrs, f.attributes, "library-attrs")}
+          ${multiFilterHtml("属性标签", tagVals, f.tags, "library-tags")}
           ${multiFilterHtml("品牌", state.db.settings?.focusBrands || [], f.brands, "library")}
           <button class="btn ${f.weeklyNew ? "active" : ""}" data-action="toggle-library-weekly-new" title="仅显示当周首次出现的新增词">
             <i data-lucide="filter"></i>周度新增
@@ -673,7 +684,7 @@ function viewLibrary() {
         <div class="table-wrap">
           <table class="data">
             <thead><tr>
-              ${sortableTh("keyword", "关键词")}${sortableTh("brand", "品牌")}${sortableTh("category", "类目词")}${sortableTh("attribute", "属性词")}
+              ${sortableTh("keyword", "关键词")}${sortableTh("brand", "品牌")}${sortableTh("category", "类目词")}${sortableTh("attribute", "属性词")}<th>属性标签</th>
               ${sortableTh("rank", "当周排名", true)}${sortableTh("rankChange", "排名变动", true)}${sortableTh("volume", "当周搜索量", true)}${sortableTh("volChange", "搜索量环比", true)}
               ${sortableTh("source", "来源")}${sortableTh("status", "状态")}
             </tr></thead>
@@ -691,6 +702,7 @@ function viewLibrary() {
                   <td>${esc(k.brand || "—")}${focus ? ' <span class="badge new">重点</span>' : ""}</td>
                   <td>${esc(k.categoryWord || "—")}</td>
                   <td>${esc(k.attribute || "—")}</td>
+                  <td>${tagsChipsHtml(k)}</td>
                   <td class="num">${rankBadge(r)}</td>
                   <td class="num">${deltaHtml(p, r)}</td>
                   <td class="num">${fmt(v)}</td>
@@ -698,7 +710,7 @@ function viewLibrary() {
                   <td>${k.source === "weekly" ? '<span class="tag">周度导入</span>' : "手动"}</td>
                   <td>${k.active === false ? '<span class="badge flat">停用</span>' : '<span class="badge up">启用</span>'}</td>
                 </tr>`;
-              }).join("") || emptyRow(10, "没有匹配的关键词")}
+              }).join("") || emptyRow(12, "没有匹配的关键词")}
             </tbody>
           </table>
         </div>
@@ -967,7 +979,7 @@ function bindViewEvents(root) {
       else if (action === "goto-xiyou") { state.view = "xiyou"; render(); }
       else if (action === "toggle-weekly-new") { state.overviewWeeklyNew = !state.overviewWeeklyNew; render(); }
       else if (action === "load-more") { state.libraryPage += 1; render(); }
-      else if (action === "reset-filters") { state.filter = { q: "", categories: [], attributes: [], source: "", brands: [], rankMin: "", rankMax: "", weeklyNew: false }; state.libraryPage = 1; render(); }
+      else if (action === "reset-filters") { state.filter = { q: "", categories: [], tags: [], source: "", brands: [], rankMin: "", rankMax: "", weeklyNew: false }; state.libraryPage = 1; render(); }
       else if (action === "toggle-library-weekly-new") { state.filter.weeklyNew = !state.filter.weeklyNew; state.libraryPage = 1; render(); }
       else if (action === "pick-file") $("#file-input").click();
       else if (action === "parse-file") parseFile();
@@ -1004,7 +1016,6 @@ function bindViewEvents(root) {
 
   root.querySelectorAll("[data-multi-toggle]").forEach((btn) => {
     btn.addEventListener("click", (e) => {
-      e.stopPropagation();
       const wrap = btn.closest("[data-multi]");
       const pop = wrap?.querySelector(".multi-pop");
       if (pop) pop.hidden = !pop.hidden;
@@ -1029,9 +1040,9 @@ function bindViewEvents(root) {
       const vals = [...wrap.querySelectorAll("input[type=checkbox]:checked")].map((c) => c.value);
       if (wrap.dataset.target === "overview-brands") state.overviewBrands = vals;
       else if (wrap.dataset.target === "overview-cats") state.overviewCategories = vals;
-      else if (wrap.dataset.target === "overview-attrs") state.overviewAttributes = vals;
+      else if (wrap.dataset.target === "overview-tags") state.overviewTags = vals;
       else if (wrap.dataset.target === "library-cats") state.filter.categories = vals;
-      else if (wrap.dataset.target === "library-attrs") state.filter.attributes = vals;
+      else if (wrap.dataset.target === "library-tags") state.filter.tags = vals;
       else state.filter.brands = vals;
       state.libraryPage = 1;
       render();
@@ -1621,7 +1632,7 @@ function openKeywordModal(kid) {
         </tr>`;
       }).join("")
     : "";
-  const cats = [...new Set(state.db.keywords.map((k) => k.categoryWord).filter(Boolean))].sort();
+  const cats = sortCategories([...new Set(state.db.keywords.map((k) => k.categoryWord).filter(Boolean))]);
   for (const c of ["Bikini", "One Piece", "Tankini", "Tankini Top"]) if (!cats.includes(c)) cats.push(c);
   const volWeeks = ids.filter((w) => kw && volOf(kw.id, w) != null);
   const volLast = volWeeks.at(-1);
@@ -1651,6 +1662,7 @@ function openKeywordModal(kid) {
             </select>
           </div>
           <div class="field"><label>属性词</label><input id="edit-attribute" value="${esc(kw?.attribute || "")}" placeholder="High"></div>
+          ${tagInputsHtml(kw)}
           <div class="field"><label>关键词</label><input id="edit-keyword" value="${esc(kw?.keyword || "")}" ${kw ? "disabled" : ""}></div>
           <div class="field"><label>关键词翻译</label><input id="edit-translation" value="${esc(kw?.translation || "")}"></div>
           <div class="field"><label>备注</label><input id="edit-notes" value="${esc(kw?.notes || "")}"></div>
@@ -1708,6 +1720,7 @@ function openKeywordModal(kid) {
       brand: modal.querySelector("#edit-brand").value.trim(),
       categoryWord: modal.querySelector("#edit-category").value,
       attribute: modal.querySelector("#edit-attribute").value.trim(),
+      tags: readTagInputs(modal),
       translation: modal.querySelector("#edit-translation").value.trim(),
       notes: modal.querySelector("#edit-notes").value.trim(),
       active: modal.querySelector("#edit-active").value === "true",
@@ -1900,42 +1913,9 @@ document.querySelectorAll(".tab").forEach((t) => {
   });
 });
 
-$("#btn-export").addEventListener("click", exportCsv);
-
-function exportCsv() {
-  if (!state.db) return;
-  const wid = state.weekId;
-  const head = ["关键词", "翻译", "品牌", "类目词", "属性词", "来源", "状态", "当周ABA排名", "当周搜索量"];
-  const rows = state.db.keywords.map((k) => [
-    k.keyword,
-    k.translation || "",
-    k.brand || "",
-    k.categoryWord || "",
-    k.attribute || "",
-    k.source === "weekly" ? "周度导入" : "手动",
-    k.active === false ? "停用" : "启用",
-    rankOf(k.id, wid) ?? "",
-    volOf(k.id, wid) ?? "",
-  ]);
-  const csv =
-    "\uFEFF" +
-    [head, ...rows]
-      .map((r) =>
-        r
-          .map((v) => {
-            const s = String(v ?? "");
-            return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-          })
-          .join(",")
-      )
-      .join("\n");
-  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "hn-search-terms-" + wid + ".csv";
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
+$("#btn-export").addEventListener("click", () => {
+  window.open(apiUrl("/api/export?format=csv"), "_blank");
+});
 
 $("#btn-update-team-link")?.addEventListener("click", updateTeamLink);
 

@@ -13,7 +13,7 @@ const state = {
   year: null,
   view: "overview",
   libraryPage: 1,
-  filter: { q: "", categories: [], attributes: [], tags: [], source: "", brands: [], rankMin: "", rankMax: "", weeklyNew: false },
+  filter: { q: "", categories: [], tags: [], source: "", brands: [], rankMin: "", rankMax: "", rankCustom: false, weeklyNew: false },
   sort: { key: "", dir: 1 },
   overviewBrands: [],
   overviewCategories: [],
@@ -93,15 +93,17 @@ function exactMatches(value, selected) {
   return selected.includes(value || "");
 }
 
-const TAG_DIMS = ["版型", "图案", "功能", "码段", "面料", "风格", "细节"];
+const TAG_DIMS = ["版型", "图案", "花色", "功能", "码段", "面料", "风格", "细节", "场景"];
 const TAG_SUGGESTIONS = {
   "版型": ["高腰", "中腰", "低腰", "挂脖", "无肩带", "抹胸", "一字肩", "深V", "镂空", "运动背心", "交叉背", "平角裤", "丁字裤", "高叉", "全覆盖", "抽褶", "褶皱", "三角", "修身"],
   "图案": ["纯色", "碎花", "条纹", "波点", "豹纹", "动物纹", "佩斯利", "几何", "抽象", "扎染", "格纹", "撞色", "印花"],
+  "花色": ["黑色", "白色", "红色", "蓝色", "粉色", "紫色", "绿色", "黄色", "橙色", "灰色", "海军蓝", "酒红", "米色", "卡其", "金色", "银色", "红白蓝", "多彩"],
   "功能": ["收腹", "显瘦", "聚拢", "支撑", "钢圈", "防晒", "速干", "耐氯", "胸垫", "可拆卸胸垫", "可调节肩带", "无钢圈", "内衬", "保守", "防滑", "吸湿排汗", "无痕"],
   "码段": ["大码", "孕妇", "小码", "青少年", "高个子", "标准码"],
   "面料": ["棉", "网纱", "尼龙", "氨纶", "涤纶", "莱卡", "再生", "环保", "罗纹", "哑光", "光泽"],
   "风格": ["复古", "性感", "运动", "潮流", "极简", "波西米亚", "柔美", "经典", "优雅", "年轻感"],
   "细节": ["侧系带", "蝴蝶结", "蕾丝", "荷叶边", "流苏", "拉链", "抽绳", "透视", "链条", "圆环", "多带", "撞色滚边"],
+  "场景": ["沙滩", "泳池", "度假", "派对", "蜜月", "亲子", "温泉", "日常", "音乐节"],
 };
 
 function tagEntries(kw) {
@@ -121,8 +123,10 @@ function tagsChipsHtml(kw) {
 
 function tagsMatch(kw, selected) {
   if (!selected || !selected.length) return true;
-  const vals = new Set(tagEntries(kw).map((e) => e.value));
-  return selected.some((v) => vals.has(v));
+  const entries = tagEntries(kw);
+  if (selected.includes("__empty__") && entries.length === 0) return true;
+  const vals = new Set(entries.map((e) => e.value));
+  return selected.some((v) => v !== "__empty__" && vals.has(v));
 }
 
 function tagsText(kw) {
@@ -131,14 +135,22 @@ function tagsText(kw) {
 
 function tagValuesFrom(kws) {
   const counts = new Map();
+  let empty = 0;
   for (const k of kws) {
-    for (const e of tagEntries(k)) {
+    const entries = tagEntries(k);
+    if (!entries.length) {
+      empty++;
+      continue;
+    }
+    for (const e of entries) {
       counts.set(e.value, (counts.get(e.value) || 0) + 1);
     }
   }
-  return [...counts.entries()]
+  const out = [...counts.entries()]
     .map(([value, count]) => ({ value, label: `${value} (${count})`, count }))
     .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value, "zh-CN"));
+  out.push({ value: "__empty__", label: `空值 (${empty})`, count: empty });
+  return out;
 }
 
 function sortCategories(list) {
@@ -282,6 +294,26 @@ function initIcons(root = document) {
   if (window.lucide) lucide.createIcons({ attrs: { class: [] } }, root);
 }
 
+async function initXiyouStatus() {
+  const el = document.querySelector("#xiyou-status");
+  if (!el) return;
+  try {
+    const resp = await fetch("/api/xiyou/tools");
+    const r = await resp.json().catch(() => ({}));
+    if (r.ok && r.configured) {
+      el.className = "xiyou-status green";
+      el.innerHTML = '<i data-lucide="Wifi"></i>西柚MCP已接入';
+    } else {
+      el.className = "xiyou-status amber";
+      el.innerHTML = '<i data-lucide="WifiOff"></i>西柚MCP未配置';
+    }
+    el.hidden = false;
+    initIcons(el);
+  } catch (e) {
+    el.hidden = true;
+  }
+}
+
 function render() {
   if (!state.db) return;
   const years = [...new Set(weekIds().map((wid) => wid.slice(0, 4)))].sort();
@@ -373,8 +405,6 @@ function viewOverview() {
     { label: "当周上榜", value: fmt(ranked.length), icon: "trending-up", extra: rankedPrev == null ? "" : ranked.length - rankedPrev > 0 ? `<span class="up">+${ranked.length - rankedPrev}</span> 较上周变化` : ranked.length - rankedPrev < 0 ? `<span class="down">${ranked.length - rankedPrev}</span> 较上周变化` : "与上周持平" },
     { label: "搜索量已匹配", value: fmt(volMatched), icon: "search", extra: weekHasVol ? `覆盖率 ${filtered.length ? Math.round((volMatched / filtered.length) * 100) : 0}%` : "西柚数据待更新（预计周三）" },
     { label: "本周新增", value: fmt(newlyAdded), icon: "plus-circle", extra: state.overviewWeeklyNew ? "已筛选仅看当周新增词" : newWeeks > 0 ? "当前周后仍有新周期" : "当前为最新数据周" },
-    { label: "当周周期", value: esc(weekLabel(wid)), icon: "calendar", extra: state.db.weeks[wid]?.volumeSource === "xiyou" ? "搜索量来自西柚" : weekHasVol ? "搜索量来自人工登记" : "搜索量待西柚更新" },
-    { label: "白名单品牌", value: fmt(focusCount), icon: "star", extra: "品牌白名单相关词" },
   ];
 
   return `
@@ -382,7 +412,7 @@ function viewOverview() {
       <div class="view-head">
         <div>
           <h2>总览 <span class="muted" style="font-size:14px">· ${esc(weekLabel(wid))}</span></h2>
-          <p>女装泳装类目周度 ABA 排名与搜索量变化</p>
+          <p>女装泳装类目周度 ABA 排名与搜索量变化 · 白名单品牌 ${fmt(focusCount)} 词 · ${state.db.weeks[wid]?.volumeSource === "xiyou" ? "搜索量来自西柚" : weekHasVol ? "搜索量来自人工登记" : "搜索量待西柚更新"}</p>
         </div>
         <div class="view-actions">
           ${multiFilterHtml("品牌", focusBrands, state.overviewBrands, "overview-brands")}
@@ -411,7 +441,7 @@ function viewOverview() {
           <div class="table-wrap">
             <table class="data">
               <thead><tr>
-                <th>排名</th><th>关键词</th><th>类目词</th><th>属性词</th>
+                <th>排名</th><th>关键词</th><th>类目词</th><th>属性标签</th>
                 <th class="num">当周搜索量</th><th class="num">搜索量环比</th><th class="num">排名变动</th><th>近12周趋势</th>
               </tr></thead>
               <tbody>
@@ -423,7 +453,7 @@ function viewOverview() {
                     <td>${rankBadge(rank)}</td>
                     <td class="kw-cell"><div class="main">${esc(k.keyword)}</div><div class="sub">${esc(k.translation)}${k.source === "weekly" ? '<span class="tag">周度导入</span>' : ""}</div></td>
                     <td>${esc(k.categoryWord || "—")}</td>
-                    <td><div>${esc(k.attribute || "—")}</div>${tagsChipsHtml(k)}</td>
+                    <td>${tagsChipsHtml(k)}</td>
                     <td class="num"><strong>${fmt(v)}</strong></td>
                     <td class="num">${volumeDeltaHtml(pv, v)}</td>
                     <td class="num">${deltaHtml(p, rank)}</td>
@@ -435,67 +465,66 @@ function viewOverview() {
           </div>
         </div>
 
-        <div style="display:grid;gap:16px">
-          <div class="panel">
-            <div class="panel-head">
-              <h3>自定义周度对比</h3>
-              <span class="sub">排名上升最快 TOP15 · 对比周排名 25 万以内</span>
-            </div>
-            <div class="panel-head" style="border-bottom:0;padding-top:8px;flex-wrap:wrap">
-              <span class="hstack" style="gap:6px">
-                <span class="muted sm">基准周</span>
-                <select class="select" id="mover-base">
-                  ${weekIds().map((x) => `<option value="${x}" ${x === moverBase ? "selected" : ""}>${esc(weekLabel(x))}</option>`).join("")}
-                </select>
-                <span class="muted">→</span>
-                <select class="select" id="mover-cur">
-                  ${weekIds().map((x) => `<option value="${x}" ${x === moverCur ? "selected" : ""}>${esc(weekLabel(x))}</option>`).join("")}
-                </select>
-                <span class="muted sm">对比周</span>
-              </span>
-            </div>
-            <div class="panel-body">
-              ${movers.length ? `
-                <div class="mover-head"><span>关键词</span><span>基准周 → 对比周</span><span>上升幅度</span></div>
-                ${movers.map(({ k, r, p, ratio }) => `
-                  <div class="mover-row clickable" data-action="open-keyword" data-id="${k.id}" title="点击查看历史趋势">
-                    <span class="label" title="${esc(k.keyword)}">${esc(k.keyword)}</span>
-                    <span class="ranks"><b>#${fmt(p)}</b><span class="muted">→</span><b class="cur">#${fmt(r)}</b></span>
-                    <span class="badge up">▲ ${ratio.toFixed(2)}x</span>
-                  </div>`).join("")}
-              ` : '<div class="empty">当前周排名 25 万内暂无上升词</div>'}
-            </div>
+        <div class="panel">
+          <div class="panel-head">
+            <h3>自定义周度对比</h3>
+            <span class="sub">排名上升最快 TOP15 · 对比周排名 25 万以内</span>
           </div>
-
-          <div class="panel">
-            <div class="panel-head"><h3>当周搜索量 Top 10</h3><span class="sub">来自西柚匹配</span></div>
-            <div class="panel-body">
-              ${volRows.length ? volRows.map(({ k, v }, i) => `
-                <div class="mini-row clickable" data-action="open-keyword" data-id="${k.id}" title="点击查看历史趋势" style="margin-bottom:6px">
-                  <span class="rank">${i + 1}</span>
+          <div class="panel-head" style="border-bottom:0;padding-top:8px;flex-wrap:wrap">
+            <span class="hstack" style="gap:6px">
+              <span class="muted sm">基准周</span>
+              <select class="select" id="mover-base">
+                ${weekIds().map((x) => `<option value="${x}" ${x === moverBase ? "selected" : ""}>${esc(weekLabel(x))}</option>`).join("")}
+              </select>
+              <span class="muted">→</span>
+              <select class="select" id="mover-cur">
+                ${weekIds().map((x) => `<option value="${x}" ${x === moverCur ? "selected" : ""}>${esc(weekLabel(x))}</option>`).join("")}
+              </select>
+              <span class="muted sm">对比周</span>
+            </span>
+          </div>
+          <div class="panel-body">
+            ${movers.length ? `
+              <div class="mover-head"><span>关键词</span><span>基准周 → 对比周</span><span>上升幅度</span></div>
+              ${movers.map(({ k, r, p, ratio }) => `
+                <div class="mover-row clickable" data-action="open-keyword" data-id="${k.id}" title="点击查看历史趋势">
                   <span class="label" title="${esc(k.keyword)}">${esc(k.keyword)}</span>
-                  <span class="val"><strong>${fmt(v)}</strong></span>
-                </div>`).join("") : '<div class="empty">本周搜索量待西柚更新（预计每周三）</div>'}
-            </div>
+                  <span class="ranks"><b>#${fmt(p)}</b><span class="muted">→</span><b class="cur">#${fmt(r)}</b></span>
+                  <span class="badge up">▲ ${ratio.toFixed(2)}x</span>
+                </div>`).join("")}
+            ` : '<div class="empty">当前周排名 25 万内暂无上升词</div>'}
           </div>
+        </div>
+      </div>
 
-          <div class="panel">
-            <div class="panel-head"><h3>周度搜索量合计</h3><span class="sub">按当前筛选 · 自定义区间</span></div>
-            <div class="panel-head" style="border-bottom:0;padding-top:8px;flex-wrap:wrap">
-              <span class="hstack" style="gap:6px">
-                <span class="muted sm">起始周</span>
-                <select class="select" id="vol-from">
-                  ${volWeeks.map((x) => `<option value="${x}" ${x === volRangeStart ? "selected" : ""}>${esc(weekLabel(x))}</option>`).join("")}
-                </select>
-                <span class="muted">→</span>
-                <select class="select" id="vol-to">
-                  ${volWeeks.map((x) => `<option value="${x}" ${x === volRangeEnd ? "selected" : ""}>${esc(weekLabel(x))}</option>`).join("")}
-                </select>
-                <span class="muted sm">结束周</span>
-              </span>
-            </div>
-            <div class="panel-body">${volumeTrendSvg(volSums)}</div>
+      <div class="sub-grid">
+        <div class="panel">
+          <div class="panel-head"><h3>当周搜索量 Top 10</h3><span class="sub">来自西柚匹配</span></div>
+          <div class="panel-body">
+            ${volRows.length ? volRows.map(({ k, v }, i) => `
+              <div class="mini-row clickable" data-action="open-keyword" data-id="${k.id}" title="点击查看历史趋势" style="margin-bottom:6px">
+                <span class="rank">${i + 1}</span>
+                <span class="label" title="${esc(k.keyword)}">${esc(k.keyword)}</span>
+                <span class="val"><strong>${fmt(v)}</strong></span>
+              </div>`).join("") : '<div class="empty">本周搜索量待西柚更新（预计每周三）</div>'}
           </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h3>周度搜索量合计</h3><span class="sub">按当前筛选 · 自定义区间</span></div>
+          <div class="panel-head" style="border-bottom:0;padding-top:8px;flex-wrap:wrap">
+            <span class="hstack" style="gap:6px">
+              <span class="muted sm">起始周</span>
+              <select class="select" id="vol-from">
+                ${volWeeks.map((x) => `<option value="${x}" ${x === volRangeStart ? "selected" : ""}>${esc(weekLabel(x))}</option>`).join("")}
+              </select>
+              <span class="muted">→</span>
+              <select class="select" id="vol-to">
+                ${volWeeks.map((x) => `<option value="${x}" ${x === volRangeEnd ? "selected" : ""}>${esc(weekLabel(x))}</option>`).join("")}
+              </select>
+              <span class="muted sm">结束周</span>
+            </span>
+          </div>
+          <div class="panel-body">${volumeTrendSvg(volSums)}</div>
         </div>
       </div>
     </section>`;
@@ -533,7 +562,7 @@ function sparklineHtml(kid) {
   const min = Math.min(...vals);
   const max = Math.max(...vals);
   const span = Math.max(1, max - min);
-  const W = 110;
+  const W = 80;
   const H = 30;
   const P = 3;
   let path = "";
@@ -640,6 +669,8 @@ function viewLibrary() {
     f.rankMin === "1" && [10000, 100000, 250000, 500000, 1000000].includes(Number(f.rankMax))
       ? String(f.rankMax)
       : "";
+  const customRank = f.rankCustom || (!presetMatch && (f.rankMin !== "" || f.rankMax !== ""));
+  const presetVal = customRank ? "custom" : presetMatch;
   return `
     <section class="view">
       <div class="view-head">
@@ -656,27 +687,27 @@ function viewLibrary() {
           ${multiFilterHtml("类目词", cats, f.categories, "library-cats")}
           ${multiFilterHtml("属性标签", tagVals, f.tags, "library-tags")}
           ${multiFilterHtml("品牌", state.db.settings?.focusBrands || [], f.brands, "library")}
-          <button class="btn ${f.weeklyNew ? "active" : ""}" data-action="toggle-library-weekly-new" title="仅显示当周首次出现的新增词">
-            <i data-lucide="filter"></i>周度新增
-          </button>
           <div class="rank-filter" title="按当周 ABA 排名区间筛选">
-            <span class="muted sm">当周排名</span>
-            <input type="number" id="lib-rank-min" min="1" step="1" placeholder="最小" value="${esc(f.rankMin)}">
-            <span class="muted">—</span>
-            <input type="number" id="lib-rank-max" min="1" step="1" placeholder="最大" value="${esc(f.rankMax)}">
             <select class="select" id="lib-rank-preset">
-              <option value="">全部</option>
-              <option value="10000" ${presetMatch === "10000" ? "selected" : ""}>1万以内</option>
-              <option value="100000" ${presetMatch === "100000" ? "selected" : ""}>10万以内</option>
-              <option value="250000" ${presetMatch === "250000" ? "selected" : ""}>25万以内</option>
-              <option value="500000" ${presetMatch === "500000" ? "selected" : ""}>50万以内</option>
-              <option value="1000000" ${presetMatch === "1000000" ? "selected" : ""}>100万以内</option>
+              <option value="">全部排名</option>
+              <option value="10000" ${presetVal === "10000" ? "selected" : ""}>1万以内</option>
+              <option value="100000" ${presetVal === "100000" ? "selected" : ""}>10万以内</option>
+              <option value="250000" ${presetVal === "250000" ? "selected" : ""}>25万以内</option>
+              <option value="500000" ${presetVal === "500000" ? "selected" : ""}>50万以内</option>
+              <option value="1000000" ${presetVal === "1000000" ? "selected" : ""}>100万以内</option>
+              <option value="custom" ${presetVal === "custom" ? "selected" : ""}>自定义</option>
             </select>
+            <span class="rank-custom" id="lib-rank-custom" ${customRank ? "" : "hidden"}>
+              <input type="number" id="lib-rank-min" min="1" step="1" placeholder="最小" value="${esc(f.rankMin)}">
+              <span class="muted">—</span>
+              <input type="number" id="lib-rank-max" min="1" step="1" placeholder="最大" value="${esc(f.rankMax)}">
+            </span>
           </div>
-          <select class="select" id="lib-source">
-            <option value="">全部来源</option>
-            <option value="manual" ${f.source === "manual" ? "selected" : ""}>手动登记</option>
-            <option value="weekly" ${f.source === "weekly" ? "selected" : ""}>周度导入</option>
+          <select class="select" id="lib-state">
+            <option value="">全部状态</option>
+            <option value="manual" ${f.source === "manual" && !f.weeklyNew ? "selected" : ""}>手动登记</option>
+            <option value="weekly" ${f.source === "weekly" && !f.weeklyNew ? "selected" : ""}>周度导入</option>
+            <option value="new" ${f.weeklyNew ? "selected" : ""}>仅当周新增</option>
           </select>
           <div class="spacer"></div>
           <button class="btn" data-action="reset-filters"><i data-lucide="x"></i>清空</button>
@@ -684,7 +715,7 @@ function viewLibrary() {
         <div class="table-wrap">
           <table class="data">
             <thead><tr>
-              ${sortableTh("keyword", "关键词")}${sortableTh("brand", "品牌")}${sortableTh("category", "类目词")}${sortableTh("attribute", "属性词")}<th>属性标签</th>
+              ${sortableTh("keyword", "关键词")}${sortableTh("brand", "品牌")}${sortableTh("category", "类目词")}<th>属性标签</th>
               ${sortableTh("rank", "当周排名", true)}${sortableTh("rankChange", "排名变动", true)}${sortableTh("volume", "当周搜索量", true)}${sortableTh("volChange", "搜索量环比", true)}
               ${sortableTh("source", "来源")}${sortableTh("status", "状态")}
             </tr></thead>
@@ -701,7 +732,6 @@ function viewLibrary() {
                   <td class="kw-cell"><div class="main">${esc(k.keyword)}</div><div class="sub">${esc(k.translation)}</div></td>
                   <td>${esc(k.brand || "—")}${focus ? ' <span class="badge new">重点</span>' : ""}</td>
                   <td>${esc(k.categoryWord || "—")}</td>
-                  <td>${esc(k.attribute || "—")}</td>
                   <td>${tagsChipsHtml(k)}</td>
                   <td class="num">${rankBadge(r)}</td>
                   <td class="num">${deltaHtml(p, r)}</td>
@@ -710,7 +740,7 @@ function viewLibrary() {
                   <td>${k.source === "weekly" ? '<span class="tag">周度导入</span>' : "手动"}</td>
                   <td>${k.active === false ? '<span class="badge flat">停用</span>' : '<span class="badge up">启用</span>'}</td>
                 </tr>`;
-              }).join("") || emptyRow(12, "没有匹配的关键词")}
+              }).join("") || emptyRow(10, "没有匹配的关键词")}
             </tbody>
           </table>
         </div>
@@ -979,8 +1009,7 @@ function bindViewEvents(root) {
       else if (action === "goto-xiyou") { state.view = "xiyou"; render(); }
       else if (action === "toggle-weekly-new") { state.overviewWeeklyNew = !state.overviewWeeklyNew; render(); }
       else if (action === "load-more") { state.libraryPage += 1; render(); }
-      else if (action === "reset-filters") { state.filter = { q: "", categories: [], tags: [], source: "", brands: [], rankMin: "", rankMax: "", weeklyNew: false }; state.libraryPage = 1; render(); }
-      else if (action === "toggle-library-weekly-new") { state.filter.weeklyNew = !state.filter.weeklyNew; state.libraryPage = 1; render(); }
+      else if (action === "reset-filters") { state.filter = { q: "", categories: [], tags: [], source: "", brands: [], rankMin: "", rankMax: "", rankCustom: false, weeklyNew: false }; state.libraryPage = 1; render(); }
       else if (action === "pick-file") $("#file-input").click();
       else if (action === "parse-file") parseFile();
       else if (action === "review-tab") { state.reviewTab = tab; render(); }
@@ -1072,14 +1101,19 @@ function bindViewEvents(root) {
       }
     }, 220));
   }
-  for (const [sel, key] of [["#lib-source", "source"]]) {
-    const el = root.querySelector(sel);
-    if (el) el.addEventListener("change", () => {
-      state.filter[key] = el.value;
-      state.libraryPage = 1;
-      render();
-    });
-  }
+  const stateEl = root.querySelector("#lib-state");
+  if (stateEl) stateEl.addEventListener("change", () => {
+    const v = stateEl.value;
+    if (v === "new") {
+      state.filter.weeklyNew = true;
+      state.filter.source = "";
+    } else {
+      state.filter.weeklyNew = false;
+      state.filter.source = v;
+    }
+    state.libraryPage = 1;
+    render();
+  });
 
   const rankMinEl = root.querySelector("#lib-rank-min");
   const rankMaxEl = root.querySelector("#lib-rank-max");
@@ -1087,6 +1121,7 @@ function bindViewEvents(root) {
   const applyRank = (active) => {
     state.filter.rankMin = rankMinEl?.value ?? "";
     state.filter.rankMax = rankMaxEl?.value ?? "";
+    state.filter.rankCustom = true;
     state.libraryPage = 1;
     render();
     const next = active === "min" ? $("#lib-rank-min") : $("#lib-rank-max");
@@ -1104,6 +1139,13 @@ function bindViewEvents(root) {
   if (rankPresetEl) {
     rankPresetEl.addEventListener("change", () => {
       const v = rankPresetEl.value;
+      if (v === "custom") {
+        state.filter.rankCustom = true;
+        state.libraryPage = 1;
+        render();
+        return;
+      }
+      state.filter.rankCustom = false;
       state.filter.rankMin = v ? "1" : "";
       state.filter.rankMax = v;
       state.libraryPage = 1;
@@ -1962,6 +2004,7 @@ async function requireAuth() {
     render();
     const loadEl = document.querySelector("#load-status");
     if (loadEl) loadEl.hidden = true;
+    initXiyouStatus();
   } catch (err) {
     document.body.innerHTML = `<div style="max-width:520px;margin:80px auto;background:#fff;border:1px solid #e3e8ee;border-radius:8px;padding:24px">
       <h2 style="margin-top:0">启动失败</h2><p>${esc(err.message)}</p>

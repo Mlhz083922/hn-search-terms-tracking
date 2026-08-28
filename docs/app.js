@@ -1955,6 +1955,21 @@ document.querySelectorAll(".tab").forEach((t) => {
   });
 });
 
+$("#btn-refresh")?.addEventListener("click", async () => {
+  const btn = $("#btn-refresh");
+  if (btn) btn.disabled = true;
+  try {
+    await loadDB();
+    render();
+    initXiyouStatus();
+    toast("已刷新", "success");
+  } catch (err) {
+    toast("刷新失败: " + err.message, "error");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+});
+
 $("#btn-export").addEventListener("click", () => {
   window.open(apiUrl("/api/export?format=csv"), "_blank");
 });

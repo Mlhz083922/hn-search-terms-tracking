@@ -58,6 +58,7 @@ a { color: var(--accent-ink); text-decoration: none; }
 .brand p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
 .site-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .site-line p { margin: 2px 0 0; }
+.site-desc { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
 .xiyou-status {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 2px 8px; border-radius: 20px; font-size: 11px;

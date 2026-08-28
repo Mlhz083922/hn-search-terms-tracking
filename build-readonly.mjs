@@ -79,6 +79,7 @@ await copy("lucide.min.js", "vendor", "vendor/lucide.min.js");
 const html = await fs.readFile(path.join(appDir, "index.html"), "utf8");
 let patchedHtml = html
   .replace(/<!-- HOTSEARCH_API_BASE_START -->[\s\S]*?<!-- HOTSEARCH_API_BASE_END -->\s*/g, "")
+  .replace(/\s*<span id="xiyou-status"[\s\S]*?<\/span>/, "")
   .replace(
     "<title>女装泳装周度热搜词追踪</title>",
     "<title>HN Search Terms Tracking · 女装泳装热搜词追踪</title>"

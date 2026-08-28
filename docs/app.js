@@ -365,6 +365,10 @@ async function initXiyouStatus() {
   if (!el) return;
   try {
     const resp = await fetch("/api/xiyou/tools");
+    if (!resp.ok) {
+      el.hidden = true;
+      return;
+    }
     const r = await resp.json().catch(() => ({}));
     if (r.ok && r.configured) {
       el.className = "xiyou-status green";

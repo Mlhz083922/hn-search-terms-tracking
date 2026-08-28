@@ -104,8 +104,13 @@ await fs.rm(path.join(dataDir, "state.json"), { force: true });
 const js = await fs.readFile(path.join(appDir, "app.js"), "utf8");
 const patchedJs = js
   .replace(
-    `async function api(path, options = {}) {
-  const resp = await fetch(path, {
+    `function apiUrl(path) {
+  const base = window.HOTSEARCH_API_BASE || "";
+  return base ? base + path.replace(/^\\/api/, "") : path;
+}
+
+async function api(path, options = {}) {
+  const resp = await fetch(apiUrl(path), {
     headers: { "content-type": "application/json" },
     ...options,
   });
@@ -285,7 +290,7 @@ async function refreshStateInBackground() {
   )
   .replace(
     `$("#btn-export").addEventListener("click", () => {
-  window.open("/api/export?format=csv", "_blank");
+  window.open(apiUrl("/api/export?format=csv"), "_blank");
 });`,
     `$("#btn-export").addEventListener("click", exportCsv);
 

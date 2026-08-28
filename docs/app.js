@@ -243,19 +243,85 @@ function toast(msg, type = "info") {
   }, 3200);
 }
 
-function apiUrl(path) {
-  const base = window.HOTSEARCH_API_BASE || "";
-  return base ? base + path.replace(/^\/api/, "") : path;
+async function api(path, options = {}) {
+  const method = String(options.method || "GET").toUpperCase();
+  if (method !== "GET" || path !== "/api/state") {
+    throw new Error("只读版本：此操作已禁用，仅提供查看");
+  }
+  return fetchStateWithProgress();
 }
 
-async function api(path, options = {}) {
-  const resp = await fetch(apiUrl(path), {
-    headers: { "content-type": "application/json" },
-    ...options,
+const STATE_KEY = "hnStateCache-841d589d981d";
+
+function openStateDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open("hnSearchTerms", 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("state");
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
   });
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) throw new Error(data.error || `请求失败 ${resp.status}`);
-  return data;
+}
+
+async function stateCacheGet() {
+  try {
+    const db = await openStateDb();
+    return await new Promise((resolve) => {
+      const tx = db.transaction("state", "readonly");
+      const req = tx.objectStore("state").get(STATE_KEY);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function stateCacheSet(value) {
+  try {
+    const db = await openStateDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction("state", "readwrite");
+      tx.objectStore("state").put(value, STATE_KEY);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {}
+}
+
+function showLoadProgress(text) {
+  const el = document.querySelector("#load-status");
+  if (!el) return;
+  el.hidden = false;
+  el.textContent = text;
+}
+
+async function fetchStateWithProgress() {
+  const resp = await fetch("./data/state.json.gz");
+  if (!resp.ok) throw new Error(`数据快照加载失败 ${resp.status}`);
+  const enc = (resp.headers.get("Content-Encoding") || "").toLowerCase();
+  if (enc.includes("gzip")) return resp.json();
+  const total = Number(resp.headers.get("Content-Length") || 0);
+  const reader = resp.body.getReader();
+  const chunks = [];
+  let received = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    if (total) {
+      const pct = Math.min(100, Math.round((received / total) * 100));
+      showLoadProgress(`数据加载中 ${pct}%，约 ${(received / 1048576).toFixed(1)} MB / ${(total / 1048576).toFixed(1)} MB`);
+    }
+  }
+  const buf = new Uint8Array(received);
+  let off = 0;
+  for (const c of chunks) {
+    buf.set(c, off);
+    off += c.length;
+  }
+  const stream = new Response(buf).body.pipeThrough(new DecompressionStream("gzip"));
+  return new Response(stream).json();
 }
 
 async function loadDB() {
@@ -1970,9 +2036,42 @@ $("#btn-refresh")?.addEventListener("click", async () => {
   }
 });
 
-$("#btn-export").addEventListener("click", () => {
-  window.open(apiUrl("/api/export?format=csv"), "_blank");
-});
+$("#btn-export").addEventListener("click", exportCsv);
+
+function exportCsv() {
+  if (!state.db) return;
+  const wid = state.weekId;
+  const head = ["关键词", "翻译", "品牌", "类目词", "属性词", "来源", "状态", "当周ABA排名", "当周搜索量"];
+  const rows = state.db.keywords.map((k) => [
+    k.keyword,
+    k.translation || "",
+    k.brand || "",
+    k.categoryWord || "",
+    k.attribute || "",
+    k.source === "weekly" ? "周度导入" : "手动",
+    k.active === false ? "停用" : "启用",
+    rankOf(k.id, wid) ?? "",
+    volOf(k.id, wid) ?? "",
+  ]);
+  const csv =
+    "\uFEFF" +
+    [head, ...rows]
+      .map((r) =>
+        r
+          .map((v) => {
+            const s = String(v ?? "");
+            return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+          })
+          .join(",")
+      )
+      .join("\n");
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "hn-search-terms-" + wid + ".csv";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 $("#btn-update-team-link")?.addEventListener("click", updateTeamLink);
 

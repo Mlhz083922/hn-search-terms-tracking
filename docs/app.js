@@ -95,15 +95,15 @@ function exactMatches(value, selected) {
 
 const TAG_DIMS = ["版型", "图案", "花色", "功能", "码段", "面料", "风格", "细节", "场景"];
 const TAG_SUGGESTIONS = {
-  "版型": ["高腰", "中腰", "低腰", "挂脖", "无肩带", "抹胸", "一字肩", "深V", "镂空", "运动背心", "交叉背", "平角裤", "丁字裤", "高叉", "全覆盖", "抽褶", "褶皱", "三角", "修身"],
-  "图案": ["纯色", "碎花", "条纹", "波点", "豹纹", "动物纹", "佩斯利", "几何", "抽象", "扎染", "格纹", "撞色", "印花"],
+  "版型": ["高腰", "中腰", "低腰", "挂脖", "无肩带", "抹胸", "一字肩", "深V", "镂空", "运动背心", "交叉背", "平角裤", "丁字裤", "高叉", "全覆盖", "抽褶", "褶皱", "三角", "修身", "两件式", "长袖", "高领", "单肩", "Cheeky", "String", "Micro", "长身版"],
+  "图案": ["纯色", "碎花", "条纹", "波点", "豹纹", "动物纹", "佩斯利", "几何", "抽象", "扎染", "格纹", "撞色", "印花", "国旗"],
   "花色": ["黑色", "白色", "红色", "蓝色", "粉色", "紫色", "绿色", "黄色", "橙色", "灰色", "海军蓝", "酒红", "米色", "卡其", "金色", "银色", "红白蓝", "多彩"],
   "功能": ["收腹", "显瘦", "聚拢", "支撑", "钢圈", "防晒", "速干", "耐氯", "胸垫", "可拆卸胸垫", "可调节肩带", "无钢圈", "内衬", "保守", "防滑", "吸湿排汗", "无痕"],
   "码段": ["大码", "孕妇", "小码", "青少年", "高个子", "标准码"],
-  "面料": ["棉", "网纱", "尼龙", "氨纶", "涤纶", "莱卡", "再生", "环保", "罗纹", "哑光", "光泽"],
+  "面料": ["棉", "网纱", "尼龙", "氨纶", "涤纶", "莱卡", "再生", "环保", "罗纹", "哑光", "光泽", "钩织"],
   "风格": ["复古", "性感", "运动", "潮流", "极简", "波西米亚", "柔美", "经典", "优雅", "年轻感"],
-  "细节": ["侧系带", "蝴蝶结", "蕾丝", "荷叶边", "流苏", "拉链", "抽绳", "透视", "链条", "圆环", "多带", "撞色滚边"],
-  "场景": ["沙滩", "泳池", "度假", "派对", "蜜月", "亲子", "温泉", "日常", "音乐节"],
+  "细节": ["侧系带", "蝴蝶结", "蕾丝", "荷叶边", "流苏", "拉链", "抽绳", "透视", "链条", "圆环", "多带", "撞色滚边", "前系带"],
+  "场景": ["沙滩", "泳池", "度假", "派对", "蜜月", "亲子", "温泉", "日常", "音乐节", "独立日"],
 };
 
 function tagEntries(kw) {
@@ -251,7 +251,7 @@ async function api(path, options = {}) {
   return fetchStateWithProgress();
 }
 
-const STATE_KEY = "hnStateCache-d6738f8dd2a2";
+const STATE_KEY = "hnStateCache-8dbe1b6ffc81";
 
 function openStateDb() {
   return new Promise((resolve, reject) => {
@@ -386,6 +386,12 @@ async function initXiyouStatus() {
 
 function render() {
   if (!state.db) return;
+  // 重渲染前记录当前聚焦的输入框与光标位置，渲染后恢复，避免输入被打断
+  const activeEl = document.activeElement;
+  const focusInfo =
+    activeEl && activeEl.id && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA")
+      ? { id: activeEl.id, start: activeEl.selectionStart, end: activeEl.selectionEnd }
+      : null;
   const years = [...new Set(weekIds().map((wid) => wid.slice(0, 4)))].sort();
   const yearSel = $("#year-select");
   if (yearSel) {
@@ -415,6 +421,13 @@ function render() {
   else if (state.view === "xiyou") root.innerHTML = viewXiyou();
   bindViewEvents(root);
   initIcons(root);
+  if (focusInfo) {
+    const el = document.getElementById(focusInfo.id);
+    if (el) {
+      el.focus();
+      try { el.setSelectionRange(focusInfo.start, focusInfo.end); } catch (e) { /* number 等输入不支持 selection */ }
+    }
+  }
 }
 
 function viewOverview() {
@@ -663,7 +676,6 @@ function sortValue(k, key) {
     case "keyword": return String(k.keyword || "").toLowerCase();
     case "brand": return String(k.brand || "").toLowerCase();
     case "category": return k.categoryWord || "";
-    case "attribute": return k.attribute || "";
     case "rank": {
       const v = rankOf(k.id, wid);
       return v == null ? null : v;
@@ -716,7 +728,7 @@ function viewLibrary() {
       if (rmax != null && r > rmax) return false;
     }
     if (!q) return true;
-    return [k.keyword, k.translation, k.brand, k.categoryWord, k.attribute, tagsText(k)].some((s) => String(s || "").toLowerCase().includes(q));
+    return [k.keyword, k.translation, k.brand, k.categoryWord, tagsText(k)].some((s) => String(s || "").toLowerCase().includes(q));
   });
   if (state.sort.key) {
     rows.sort((a, b) => {
@@ -1160,16 +1172,23 @@ function bindViewEvents(root) {
 
   const q = root.querySelector("#lib-q");
   if (q) {
-    q.addEventListener("input", debounce(() => {
+    // 输入法组词期间不触发重渲染（否则拼音缓冲会被销毁，中文无法正常输入）
+    let composing = false;
+    const runSearch = debounce(() => {
+      if (!q.isConnected) return; // 输入框已被重渲染替换，交给新元素的处理
       state.filter.q = q.value;
       state.libraryPage = 1;
       render();
-      const newQ = $("#lib-q");
-      if (newQ) {
-        newQ.focus();
-        newQ.setSelectionRange(newQ.value.length, newQ.value.length);
-      }
-    }, 220));
+    }, 220);
+    q.addEventListener("compositionstart", () => { composing = true; });
+    q.addEventListener("compositionend", () => {
+      composing = false;
+      runSearch();
+    });
+    q.addEventListener("input", (e) => {
+      if (composing || e.isComposing) return;
+      runSearch();
+    });
   }
   const stateEl = root.querySelector("#lib-state");
   if (stateEl) stateEl.addEventListener("change", () => {
@@ -1188,25 +1207,26 @@ function bindViewEvents(root) {
   const rankMinEl = root.querySelector("#lib-rank-min");
   const rankMaxEl = root.querySelector("#lib-rank-max");
   const rankPresetEl = root.querySelector("#lib-rank-preset");
-  const applyRank = (active) => {
+  const applyRank = () => {
     state.filter.rankMin = rankMinEl?.value ?? "";
     state.filter.rankMax = rankMaxEl?.value ?? "";
     state.filter.rankCustom = true;
     state.libraryPage = 1;
-    render();
-    const next = active === "min" ? $("#lib-rank-min") : $("#lib-rank-max");
-    if (next) {
-      next.focus();
-      next.setSelectionRange(next.value.length, next.value.length);
-    }
+    render(); // render() 会保留输入框焦点与光标
   };
-  if (rankMinEl) {
-    rankMinEl.addEventListener("input", debounce(() => applyRank("min"), 220));
-  }
-  if (rankMaxEl) {
-    rankMaxEl.addEventListener("input", debounce(() => applyRank("max"), 220));
-  }
-  if (rankPresetEl) {
+  const bindRankInput = (el) => {
+    if (!el) return;
+    let composing = false;
+    el.addEventListener("compositionstart", () => { composing = true; });
+    el.addEventListener("compositionend", () => { composing = false; });
+    el.addEventListener("input", (e) => {
+      if (composing || e.isComposing) return;
+      debouncedApplyRank();
+    });
+  };
+  const debouncedApplyRank = debounce(applyRank, 220);
+  bindRankInput(rankMinEl);
+  bindRankInput(rankMaxEl);  if (rankPresetEl) {
     rankPresetEl.addEventListener("change", () => {
       const v = rankPresetEl.value;
       if (v === "custom") {
@@ -1773,7 +1793,6 @@ function openKeywordModal(kid) {
               ${cats.map((c) => `<option ${kw?.categoryWord === c ? "selected" : ""}>${esc(c)}</option>`).join("")}
             </select>
           </div>
-          <div class="field"><label>属性词</label><input id="edit-attribute" value="${esc(kw?.attribute || "")}" placeholder="High"></div>
           ${tagInputsHtml(kw)}
           <div class="field"><label>关键词</label><input id="edit-keyword" value="${esc(kw?.keyword || "")}" ${kw ? "disabled" : ""}></div>
           <div class="field"><label>关键词翻译</label><input id="edit-translation" value="${esc(kw?.translation || "")}"></div>
@@ -1831,7 +1850,6 @@ function openKeywordModal(kid) {
     const body = {
       brand: modal.querySelector("#edit-brand").value.trim(),
       categoryWord: modal.querySelector("#edit-category").value,
-      attribute: modal.querySelector("#edit-attribute").value.trim(),
       tags: readTagInputs(modal),
       translation: modal.querySelector("#edit-translation").value.trim(),
       notes: modal.querySelector("#edit-notes").value.trim(),

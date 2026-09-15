@@ -251,7 +251,7 @@ async function api(path, options = {}) {
   return fetchStateWithProgress();
 }
 
-const STATE_KEY = "hnStateCache-8dbe1b6ffc81";
+const STATE_KEY = "hnStateCache-335f06b50f1e";
 
 function openStateDb() {
   return new Promise((resolve, reject) => {
@@ -918,6 +918,9 @@ function viewUpdate() {
         <span class="chip green"><b>${fmt(inc.length)}</b> 收录</span>
         <span class="chip amber"><b>${fmt(cand.length)}</b> 待确认</span>
         <span class="chip red"><b>${fmt(exc.length)}</b> 排除</span>
+        ${d.rows.some((r) => r.status === "exclude" && r.excludedFromMemory)
+          ? `<span class="chip"><b>${fmt(d.rows.filter((r) => r.status === "exclude" && r.excludedFromMemory).length)}</b> 历史排除记忆</span>`
+          : ""}
         <span class="chip"><b>${fmt(d.stats.trackedHits)}</b> 命中已有词库</span>
         <span class="chip"><b>${fmt(d.stats.newKeywords)}</b> 新增词</span>
       </div>
@@ -1367,13 +1370,20 @@ function fileToBase64(file) {
 function setRowStatus(term, status) {
   const d = state.draft;
   const row = d.rows.find((r) => r.searchTerm === term);
-  if (row) row.status = status;
+  if (row) {
+    row.status = status;
+    if (status !== "exclude") row.excludedFromMemory = false;
+  }
   render();
 }
 
 function bulkStatus(from, to) {
   const d = state.draft;
-  for (const r of d.rows) if (r.status === from) r.status = to;
+  for (const r of d.rows) {
+    if (r.status !== from) continue;
+    r.status = to;
+    if (to !== "exclude") r.excludedFromMemory = false;
+  }
   render();
 }
 
@@ -1551,7 +1561,11 @@ async function commitDraft() {
     initIcons(btn);
   }
   try {
-    const res = await api(`/api/drafts/${state.draft.id}/commit`, { method: "POST", body: "{}" });
+    const rows = state.draft.rows.map((r) => ({ searchTerm: r.searchTerm, status: r.status }));
+    const res = await api(`/api/drafts/${state.draft.id}/commit`, {
+      method: "POST",
+      body: JSON.stringify({ rows }),
+    });
     state.draft = null;
     await loadDB();
     state.weekId = res.weekId;
@@ -1668,16 +1682,19 @@ async function manualVolumeImport(week) {
 
 async function xiyouAutoMatch(week) {
   const weekId = week || $("#xiyou-week")?.value || state.xiyouWeekId || state.weekId;
-  const btn = document.querySelector('[data-action="xiyou-auto-match"]');
-  const box = $("#xiyou-auto-status");
+  const getButton = () => document.querySelector('[data-action="xiyou-auto-match"]');
+  const getStatusBox = () => document.querySelector("#xiyou-auto-status");
+  let box = getStatusBox();
   if (!box) return;
   const restore = () => {
+    const btn = getButton();
     if (btn) {
       btn.disabled = false;
       btn.innerHTML = '<i data-lucide="zap"></i>一键自动匹配搜索量';
       initIcons(btn);
     }
   };
+  let btn = getButton();
   if (btn) {
     btn.disabled = true;
     btn.innerHTML = '<i data-lucide="loader-2"></i>自动匹配中...';
@@ -1698,9 +1715,12 @@ async function xiyouAutoMatch(week) {
   const tick = async () => {
     const cur = await api(`/api/xiyou/jobs/${job.id}`);
     const pct = cur.total ? Math.round((cur.done / cur.total) * 100) : 100;
-    box.innerHTML = `
-      <div class="chip"><b>${fmt(cur.done)}/${fmt(cur.total)}</b> 词 · 已匹配 ${fmt(cur.matched)} · 消耗 ${fmt(cur.costCredits)} 积分</div>
-      <div class="progress"><i style="width:${pct}%"></i></div>`;
+    box = getStatusBox();
+    if (box) {
+      box.innerHTML = `
+        <div class="chip"><b>${fmt(cur.done)}/${fmt(cur.total)}</b> 词 · 已匹配 ${fmt(cur.matched)} · 消耗 ${fmt(cur.costCredits)} 积分</div>
+        <div class="progress"><i style="width:${pct}%"></i></div>`;
+    }
     return cur;
   };
   try {
@@ -1712,10 +1732,13 @@ async function xiyouAutoMatch(week) {
     if (cur.status === "done") {
       await loadDB();
       render();
+      box = getStatusBox();
+      if (!box) return;
       box.innerHTML = `
         <div class="chip-row" style="margin-top:6px">
+          <span class="chip ${cur.stopped === "credits" ? "amber" : "green"}"><b>${cur.stopped === "credits" ? "已暂停" : "匹配完成"}</b></span>
           <span class="chip green"><b>${fmt(cur.matched)}</b> 匹配成功</span>
-          ${cur.stopped === "credits" ? '<span class="chip red">西柚积分不足，已暂停</span>' : ""}
+          ${cur.stopped === "credits" ? '<span class="chip red">西柚积分不足</span>' : ""}
           <span class="chip"><b>${fmt(cur.costCredits)}</b> 积分</span>
         </div>
         ${cur.notFound.length ? `<div class="kbd-hint">未匹配：${esc(cur.notFound.slice(0, 10).join("、"))}${cur.notFound.length > 10 ? " 等" : ""}</div>` : ""}`;
@@ -1726,10 +1749,12 @@ async function xiyouAutoMatch(week) {
         "success"
       );
     } else {
-      box.innerHTML = `<div class="chip red"><b>任务失败</b> ${esc(cur.error || "未知错误")}</div>`;
+      box = getStatusBox();
+      if (box) box.innerHTML = `<div class="chip red"><b>任务失败</b> ${esc(cur.error || "未知错误")}</div>`;
     }
   } catch (err) {
-    box.innerHTML = `<div class="chip red"><b>查询失败</b> ${esc(err.message)}</div>`;
+    box = getStatusBox();
+    if (box) box.innerHTML = `<div class="chip red"><b>查询失败</b> ${esc(err.message)}</div>`;
   } finally {
     restore();
   }

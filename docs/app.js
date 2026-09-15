@@ -26,7 +26,6 @@ const state = {
   draft: null,
   reviewTab: "include",
   reviewLimit: 250,
-  xiyouBatch: 1,
   xiyouWeekId: null,
   modal: null,
 };
@@ -983,9 +982,8 @@ function viewUpdate() {
             <div id="xiyou-auto-status"></div>
           </div>
           <div class="hstack">
-            <button class="btn" data-action="xiyou-export" data-week="${d.weekId}"><i data-lucide="download"></i>导出待匹配词（第1批/100词）</button>
-            <button class="btn" data-action="xiyou-export-next" data-week="${d.weekId}"><i data-lucide="chevrons-right"></i>下一批</button>
-            <span class="kbd-hint">也可直接到「西柚匹配」页导出全部批次</span>
+            <button class="btn" data-action="xiyou-export" data-week="${d.weekId}"><i data-lucide="download"></i>导出全部待匹配词</button>
+            <span class="kbd-hint">一次性导出当前周期全部待匹配关键词</span>
           </div>
         </div>
       </div>
@@ -1019,8 +1017,7 @@ function viewXiyou() {
           <p>批量查询当周关键词搜索量</p>
         </div>
         <div class="view-actions">
-          <button class="btn" data-action="xiyou-export" data-week="${wid}"><i data-lucide="download"></i>导出待匹配词（第1批/100词）</button>
-          <button class="btn" data-action="xiyou-export-next" data-week="${wid}"><i data-lucide="chevrons-right"></i>下一批</button>
+          <button class="btn" data-action="xiyou-export" data-week="${wid}"><i data-lucide="download"></i>导出全部待匹配词</button>
         </div>
       </div>
       <div class="panel">
@@ -1106,8 +1103,7 @@ function bindViewEvents(root) {
       else if (action === "save-review") saveReview();
       else if (action === "discard-draft") discardDraft();
       else if (action === "commit-draft") commitDraft();
-      else if (action === "xiyou-export") xiyouExport(week, 1);
-      else if (action === "xiyou-export-next") xiyouExport(week, state.xiyouBatch + 1);
+      else if (action === "xiyou-export") xiyouExport(week);
       else if (action === "xiyou-auto-match") xiyouAutoMatch(week);
       else if (action === "xiyou-pending") xiyouPendingToggle(week);
       else if (action === "manual-volume-pick") $("#manual-volume-file")?.click();
@@ -1270,7 +1266,6 @@ function bindViewEvents(root) {
   if (xw) {
     xw.onchange = () => {
       state.xiyouWeekId = xw.value;
-      state.xiyouBatch = 1;
       render();
     };
   }
@@ -1342,7 +1337,6 @@ async function parseFile() {
     state.draft = draft;
     state.reviewTab = "include";
     state.reviewLimit = 250;
-    state.xiyouBatch = 1;
     state.xiyouWeekId = draft.weekId;
     pendingFile = null;
     toast(`解析完成：收录 ${draft.stats.include} / 待确认 ${draft.stats.candidate} / 排除 ${draft.stats.exclude}`, "success");
@@ -1581,18 +1575,17 @@ async function commitDraft() {
   }
 }
 
-async function xiyouExport(week, batch) {
+async function xiyouExport(week) {
   if (!week) week = state.xiyouWeekId || state.weekId;
   try {
-    const data = await api(`/api/xiyou/pending?weekId=${week}&batch=${batch}&batchSize=100&missingOnly=1`);
-    state.xiyouBatch = batch;
+    const data = await api(`/api/xiyou/pending?weekId=${week}&all=1&missingOnly=1`);
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `xiyou_week_${week}_batch${batch}.json`;
+    a.download = `xiyou_week_${week}_all.json`;
     a.click();
     URL.revokeObjectURL(a.href);
-    toast(data.more ? `已导出第 ${batch} 批，还有更多批次` : `已导出第 ${batch} 批（共 ${data.total} 词）`, "success");
+    toast(`已一次性导出全部 ${data.total} 个待匹配词`, "success");
     render();
   } catch (err) {
     toast(err.message, "error");

@@ -250,7 +250,7 @@ async function api(path, options = {}) {
   return fetchStateWithProgress();
 }
 
-const STATE_KEY = "hnStateCache-d72a4b984a67";
+const STATE_KEY = "hnStateCache-7eb18b4b2983";
 
 function openStateDb() {
   return new Promise((resolve, reject) => {
@@ -321,6 +321,20 @@ async function fetchStateWithProgress() {
   }
   const stream = new Response(buf).body.pipeThrough(new DecompressionStream("gzip"));
   return new Response(stream).json();
+}
+
+async function uploadFile(path, file, fields = {}) {
+  const headers = {
+    "content-type": "application/octet-stream",
+    "x-file-name": encodeURIComponent(file.name || "upload.xlsx"),
+  };
+  for (const [key, value] of Object.entries(fields)) {
+    headers[`x-${key.replace(/[A-Z]/g, (ch) => "-" + ch.toLowerCase())}`] = encodeURIComponent(String(value));
+  }
+  const resp = await fetch(apiUrl(path), { method: "POST", headers, body: file });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(data.error || `请求失败 ${resp.status}`);
+  return data;
 }
 
 async function loadDB() {
@@ -1315,7 +1329,6 @@ async function parseFile() {
     toast("请填写周起始和结束日期", "error");
     return;
   }
-  const base64 = await fileToBase64(pendingFile);
   const addNew = $("#add-new").value === "true";
   const btn = document.querySelector('[data-action="parse-file"]');
   if (btn) {
@@ -1324,15 +1337,10 @@ async function parseFile() {
     initIcons(btn);
   }
   try {
-    const draft = await api("/api/import/aba", {
-      method: "POST",
-      body: JSON.stringify({
-        fileName: pendingFile.name,
-        fileData: base64,
-        weekStart: start,
-        weekEnd: end,
-        addNewKeywords: addNew,
-      }),
+    const draft = await uploadFile("/api/import/aba", pendingFile, {
+      weekStart: start,
+      weekEnd: end,
+      addNewKeywords: addNew,
     });
     state.draft = draft;
     state.reviewTab = "include";

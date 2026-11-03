@@ -14,6 +14,27 @@
   const dataCache = new Map();
   const FBA_LEAD_STORAGE = "wb.inventoryFbaLeadOverrides";
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  let snapshotDetailsPromise = null;
+
+  async function loadSnapshotDetails() {
+    if (!snapshotDetailsPromise) {
+      snapshotDetailsPromise = (async () => {
+        const response = await fetch(new URL("snapshot-details.json.gz?v=20261103-compact", location.href));
+        if (!response.ok) throw new Error("库存明细读取失败");
+        const buffer = await response.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        let stream = new Blob([bytes]).stream();
+        if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
+          stream = stream.pipeThrough(new DecompressionStream("gzip"));
+        }
+        return JSON.parse(await new Response(stream).text());
+      })().catch((error) => {
+        snapshotDetailsPromise = null;
+        throw error;
+      });
+    }
+    return snapshotDetailsPromise;
+  }
 
   function readFbaLeadOverrides() {
     try {
@@ -842,13 +863,17 @@
       fbaInTransit: 0,
       purchaseInTransit: 0,
     });
-    summary.purchaseInTransit = (data.purchaseInTransit || [])
-      .filter((row) => row.recordState !== "completed")
-      .reduce((sum, row) => sum + num(row.inTransitQty), 0);
+    summary.purchaseInTransit = data.purchaseInTransitTotal != null
+      ? num(data.purchaseInTransitTotal)
+      : (data.purchaseInTransit || [])
+        .filter((row) => row.recordState !== "completed")
+        .reduce((sum, row) => sum + num(row.inTransitQty), 0);
     summary.totalStock = summary.domesticInWarehouse + summary.domesticInTransit
       + summary.fbaInWarehouse + summary.fbaInTransit;
-    summary.batchCount = (data.purchaseInTransit || []).filter((row) => row.recordState !== "completed" && num(row.inTransitQty) > 0).length
-      + (data.fbaShipments || []).filter((shipment) => shipment.recordState !== "completed").length;
+    summary.batchCount = data.purchaseBatchCount != null
+      ? num(data.purchaseBatchCount) + num(data.fbaBatchCount)
+      : (data.purchaseInTransit || []).filter((row) => row.recordState !== "completed" && num(row.inTransitQty) > 0).length
+        + (data.fbaShipments || []).filter((shipment) => shipment.recordState !== "completed").length;
     return summary;
   }
 
@@ -1896,6 +1921,9 @@
         root.dataset.inventoryHn0010Rows = String(this.rows.filter((row) => text(row.model) === "HN0010S27").length);
         this.fillFilters(root);
         this.renderTable(root);
+        if (window.__INVENTORY_SNAPSHOT_MODE__) {
+          setTimeout(() => loadSnapshotDetails().catch(() => {}), 800);
+        }
         const todayCn = shanghaiDate(Date.now());
         const snapshotCn = this.data.updatedAt ? shanghaiDate(this.data.updatedAt) : "";
         if (snapshotCn !== todayCn && !window.__INVENTORY_SNAPSHOT_MODE__) {
@@ -1908,6 +1936,9 @@
 
     buildRows(data) {
       if (!data) return [];
+      if (this._scope === "model" && Array.isArray(data.precomputedRows)) {
+        return data.precomputedRows;
+      }
       return this._scope === "model"
         ? buildModelRows(data)
         : this._scope === "color"
@@ -2020,9 +2051,22 @@
         });
       });
       tableRoot.querySelectorAll(".inventory-detail").forEach((button) => {
-        button.addEventListener("click", () => {
+        button.addEventListener("click", async () => {
           const row = this.tableRows[Number(button.dataset.index)];
           const snapshot = this.snapshots.find((item) => item.date === row?.snapshotDate) || this.snapshots[0];
+          if (window.__INVENTORY_SNAPSHOT_MODE__ && snapshot) {
+            button.disabled = true;
+            try {
+              const details = await loadSnapshotDetails();
+              row.purchaseRows = details.purchaseRowsByKey?.[row.key] || [];
+              snapshot.data = { ...snapshot.data, fbaShipments: details.fbaShipments || [] };
+            } catch (error) {
+              W.toast(error.message || "库存明细读取失败", "error");
+              button.disabled = false;
+              return;
+            }
+            button.disabled = false;
+          }
           openDetail(root, row, this._scope, snapshot ? snapshot.data : this.data, this);
         });
       });

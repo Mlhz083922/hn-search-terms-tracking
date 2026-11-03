@@ -52,7 +52,7 @@
   async function loadInventorySnapshot() {
     if (!inventorySnapshotPromise) {
       inventorySnapshotPromise = (async () => {
-        const response = await fetch(new URL("snapshot-data.json.gz", location.href));
+        const response = await fetch(new URL("snapshot-data.json.gz?v=20261103-compact", location.href));
         if (!response.ok) throw new Error("库存快照数据读取失败");
         const buffer = await response.arrayBuffer();
         const bytes = new Uint8Array(buffer);

@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>亚马逊运营工作台</title>
+    <link rel="icon" href="favicon.ico" type="image/x-icon" />
+    <link rel="icon" href="favicon.png" type="image/png" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar">
+        <div class="brand">
+          <span class="brand-mark" id="brand-mark">
+            <img src="favicon.png" alt="" />
+          </span>
+          <div class="brand-text">
+            <strong>亚马逊运营工作台</strong>
+            <small>Amazon Ops Workbench</small>
+          </div>
+          <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" title="收起侧边栏" aria-label="收起侧边栏">
+            <i data-lucide="PanelLeftClose"></i>
+          </button>
+        </div>
+
+        <nav class="side-nav" aria-label="主导航">
+          <button class="nav-item" data-view="knowledge" data-lucide-icon="BookOpen">
+            <i data-lucide="BookOpen"></i><span>知识库与指南</span>
+          </button>
+          <button class="nav-group" data-group="products">
+            <i data-lucide="FolderKanban"></i><span class="nav-group-label">产品档案</span>
+            <i data-lucide="ChevronDown" class="nav-group-caret"></i>
+          </button>
+          <div class="nav-group-items" data-group-items="products">
+            <button class="nav-item" data-view="products" data-lucide-icon="FolderKanban">
+              <i data-lucide="FolderKanban"></i><span>基础资料</span>
+            </button>
+            <button class="nav-item" data-view="listing-mapping" data-lucide-icon="ListTree">
+              <i data-lucide="ListTree"></i><span>Listing映射</span>
+            </button>
+          </div>
+
+          <button class="nav-group" data-group="market">
+            <i data-lucide="LineChart"></i>
+            <span class="nav-group-label">市场调研</span>
+            <i data-lucide="ChevronDown" class="nav-group-caret"></i>
+          </button>
+          <div class="nav-group-items" data-group-items="market">
+            <button class="nav-item" data-view="keywords" data-lucide-icon="Search">
+              <i data-lucide="Search"></i><span>热搜词追踪</span>
+            </button>
+            <button class="nav-item is-active" data-view="category" data-lucide-icon="Layers" aria-current="page">
+              <i data-lucide="Layers"></i><span>榜单分析</span>
+            </button>
+            <button class="nav-item" data-view="competitor" data-lucide-icon="Users">
+              <i data-lucide="Users"></i><span>竞品分析</span>
+            </button>
+          </div>
+
+          <button class="nav-group" data-group="listing">
+            <i data-lucide="ClipboardList"></i>
+            <span class="nav-group-label">Listing优化</span>
+            <i data-lucide="ChevronDown" class="nav-group-caret"></i>
+          </button>
+          <div class="nav-group-items" data-group-items="listing">
+            <button class="nav-item" data-view="listing" data-lucide-icon="FileSpreadsheet">
+              <i data-lucide="FileSpreadsheet"></i><span>Listing 文案与上架表格</span>
+            </button>
+            <button class="nav-item" data-view="tmblacklist" data-lucide-icon="ShieldAlert">
+              <i data-lucide="ShieldAlert"></i><span>侵权词</span>
+            </button>
+          </div>
+
+          <button class="nav-group" data-group="promotion">
+            <i data-lucide="Rocket"></i>
+            <span class="nav-group-label">推广洞察</span>
+            <i data-lucide="ChevronDown" class="nav-group-caret"></i>
+          </button>
+          <div class="nav-group-items" data-group-items="promotion">
+            <button class="nav-item" data-view="promotion-overview" data-lucide-icon="LayoutDashboard">
+              <i data-lucide="LayoutDashboard"></i><span>推广总览</span>
+            </button>
+            <button class="nav-item" data-view="promotion-daily-detail" data-lucide-icon="Table2">
+              <i data-lucide="Table2"></i><span>型号细化</span>
+            </button>
+            <button class="nav-item" data-view="promotion-sku-detail" data-lucide-icon="ScanBarcode">
+              <i data-lucide="ScanBarcode"></i><span>SKU细化</span>
+            </button>
+            <button class="nav-item" data-view="promotion-daily-followup" data-lucide-icon="CalendarRange">
+              <i data-lucide="CalendarRange"></i><span>日数据概览</span>
+            </button>
+            <button class="nav-item" data-view="promotion-daily-compare" data-lucide-icon="GitCompare">
+              <i data-lucide="GitCompare"></i><span>对比分析</span>
+            </button>
+          </div>
+
+          <button class="nav-group" data-group="ads">
+            <i data-lucide="Megaphone"></i>
+            <span class="nav-group-label">广告智研</span>
+            <i data-lucide="ChevronDown" class="nav-group-caret"></i>
+          </button>
+          <div class="nav-group-items" data-group-items="ads">
+            <button class="nav-item" data-view="adsbuilder" data-lucide-icon="Wand2">
+              <i data-lucide="Wand2"></i><span>广告搭建</span>
+            </button>
+            <button class="nav-item" data-view="adsdiagnosis" data-lucide-icon="FileSpreadsheet">
+              <i data-lucide="FileSpreadsheet"></i><span>广告诊断</span>
+            </button>
+          </div>
+
+          <button class="nav-group" data-group="inventory">
+            <i data-lucide="Boxes"></i>
+            <span class="nav-group-label">库存监控</span>
+            <i data-lucide="ChevronDown" class="nav-group-caret"></i>
+          </button>
+          <div class="nav-group-items" data-group-items="inventory">
+            <button class="nav-item" data-view="inventory-model" data-lucide-icon="Boxes">
+              <i data-lucide="Boxes"></i><span>型号细化</span>
+            </button>
+            <button class="nav-item" data-view="inventory-color" data-lucide-icon="Palette">
+              <i data-lucide="Palette"></i><span>花色细化</span>
+            </button>
+            <button class="nav-item" data-view="inventory-sku" data-lucide-icon="ScanBarcode">
+              <i data-lucide="ScanBarcode"></i><span>SKU细化</span>
+            </button>
+          </div>
+
+          <button class="nav-group" data-group="aftersales">
+            <i data-lucide="LifeBuoy"></i>
+            <span class="nav-group-label">售后跟踪</span>
+            <i data-lucide="ChevronDown" class="nav-group-caret"></i>
+          </button>
+          <div class="nav-group-items" data-group-items="aftersales">
+            <button class="nav-item" data-view="emails" data-lucide-icon="Mail">
+              <i data-lucide="Mail"></i><span>邮件回复</span><span class="nav-badge">规划中</span>
+            </button>
+            <button class="nav-item" data-view="returns" data-lucide-icon="Undo2">
+              <i data-lucide="Undo2"></i><span>退货分析</span>
+            </button>
+            <button class="nav-item" data-view="profit" data-lucide-icon="TrendingUp">
+              <i data-lucide="TrendingUp"></i><span>利润分析</span>
+            </button>
+          </div>
+
+          <button class="nav-item" data-view="mcpapi" data-lucide-icon="Plug">
+            <i data-lucide="Plug"></i><span>MCP&API</span>
+          </button>
+        </nav>
+
+      </aside>
+
+      <div class="sidebar-resizer" id="sidebar-resizer" role="separator" aria-orientation="vertical" tabindex="0" title="拖动调整侧边栏宽度" aria-label="拖动调整侧边栏宽度"></div>
+
+      <button class="sidebar-expand-btn" id="sidebar-expand-btn" title="展开侧边栏" aria-label="展开侧边栏" hidden>
+        <i data-lucide="PanelLeftOpen"></i>
+      </button>
+      <div class="sidebar-overlay" id="sidebar-overlay" hidden></div>
+
+      <main class="main">
+        <div id="view-root"></div>
+      </main>
+    </div>
+
+    <div id="modal-root"></div>
+    <div id="toast-root"></div>
+
+    <script src="vendor/jszip.min.js"></script>
+    <script src="vendor/lucide.min.js"></script>
+    <script src="site-config.js"></script>
+    <script>window.__INVENTORY_SNAPSHOT_MODE__ = true;</script>
+    <script src="app.js"></script>
+  </body>
+</html>

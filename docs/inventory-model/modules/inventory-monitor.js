@@ -1927,12 +1927,11 @@
     },
 
     fillFilters(root) {
-      const models = Array.from(new Set(this.rows.map((row) => text(row.model)).filter(Boolean))).sort();
       const sites = Array.from(new Set(this.rows.map((row) => text(row.site)).filter(Boolean))).sort();
       const modelSelect = root.querySelector("#inventory-model-filter");
       const siteSelect = root.querySelector("#inventory-site-filter");
-      modelSelect.innerHTML = `<option value="">全部型号</option>${models.map((value) => `<option value="${esc(value)}">${esc(value)}</option>`).join("")}`;
       siteSelect.innerHTML = `<option value="">全部站点</option>${sites.map((value) => `<option value="${esc(value)}">${esc(value)}</option>`).join("")}`;
+      this.refreshModelOptions(root);
       if (this._scope === "model") {
         const splitOptions = (values) => Array.from(new Set(values
           .flatMap((value) => text(value).split(" / "))
@@ -1969,6 +1968,16 @@
       root.querySelector("#inventory-source").textContent = `${snapshotLabel} · 数据更新 ${updated}${historyText}`;
     },
 
+    refreshModelOptions(root) {
+      const modelSelect = root.querySelector("#inventory-model-filter");
+      if (!modelSelect) return;
+      const modelRows = filterRows(this.rows, { ...this.state, model: "" });
+      const models = Array.from(new Set(modelRows.map((row) => text(row.model)).filter(Boolean))).sort();
+      if (this.state.model && !models.includes(this.state.model)) this.state.model = "";
+      modelSelect.innerHTML = `<option value="">全部型号</option>${models.map((value) => `<option value="${esc(value)}">${esc(value)}</option>`).join("")}`;
+      modelSelect.value = this.state.model;
+    },
+
     updateDateLabel(root) {
       const label = root.querySelector("#inventory-date-label");
       const latest = root.querySelector("[data-inventory-date-latest]");
@@ -1984,6 +1993,7 @@
 
     renderTable(root) {
       if (!this.data) return;
+      this.refreshModelOptions(root);
       const filtered = filterRows(this.rows, this.state);
       this.state.filteredCount = filtered.length;
       const pageSize = this.state.selectedDates.length > 1

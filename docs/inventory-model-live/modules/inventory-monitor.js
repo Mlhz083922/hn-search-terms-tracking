@@ -19,7 +19,7 @@
   async function loadSnapshotDetails() {
     if (!snapshotDetailsPromise) {
       snapshotDetailsPromise = (async () => {
-        const response = await fetch(new URL("snapshot-details.json.gz?v=20261103-compact", location.href));
+        const response = await fetch(new URL("snapshot-details.json.gz?v=20261103-compact-2", location.href));
         if (!response.ok) throw new Error("库存明细读取失败");
         const buffer = await response.arrayBuffer();
         const bytes = new Uint8Array(buffer);

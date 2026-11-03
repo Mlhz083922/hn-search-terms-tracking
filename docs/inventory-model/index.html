@@ -3417,7 +3417,7 @@ window.__INVENTORY_SNAPSHOT_DATA_B64__ = "H4sIAAAAAAACE+y9W3Nd53Wm+1dYuI3MfOcD7t
   async function loadSnapshotDetails() {
     if (!snapshotDetailsPromise) {
       snapshotDetailsPromise = (async () => {
-        const response = await fetch(new URL("snapshot-details.json.gz?v=20261103-us", location.href));
+        const response = await fetch(new URL("snapshot-details.json.gz?v=20261103-us-transit-1", location.href));
         if (!response.ok) throw new Error("库存明细读取失败");
         const buffer = await response.arrayBuffer();
         const bytes = new Uint8Array(buffer);
@@ -4857,8 +4857,8 @@ window.__INVENTORY_SNAPSHOT_DATA_B64__ = "H4sIAAAAAAACE+y9W3Nd53Wm+1dYuI3MfOcD7t
             <div><span>FBA在途</span><b>${esc(fmtNum(row.fbaInTransit, 0))}</b></div>
           </div>
           <div class="inventory-detail-tabs" role="tablist" aria-label="库存明细视图">
-            <button type="button" class="is-active" data-detail-tab="fba" role="tab" aria-selected="true">FBA 调拨明细 <span>${esc(fmtNum(shipmentRows.length, 0))}</span></button>
-            <button type="button" data-detail-tab="purchase" role="tab" aria-selected="false">国内采购明细 <span>${esc(fmtNum(purchaseRows.length, 0))}</span></button>
+            <button type="button" class="is-active" data-detail-tab="fba" role="tab" aria-selected="true">${window.__INVENTORY_SNAPSHOT_MODE__ ? "FBA 在途" : "FBA 调拨明细"} <span>${esc(fmtNum(shipmentRows.length, 0))}</span></button>
+            <button type="button" data-detail-tab="purchase" role="tab" aria-selected="false">${window.__INVENTORY_SNAPSHOT_MODE__ ? "国内在途" : "国内采购明细"} <span>${esc(fmtNum(purchaseRows.length, 0))}</span></button>
           </div>
           <section class="inventory-detail-pane" data-detail-pane="fba">
             <div class="inventory-detail-toolbar">
@@ -5013,6 +5013,16 @@ window.__INVENTORY_SNAPSHOT_DATA_B64__ = "H4sIAAAAAAACE+y9W3Nd53Wm+1dYuI3MfOcD7t
     });
     applyDetailFilter("fba");
     applyDetailFilter("purchase");
+    if (!hasFbaRows && purchaseRows.length) {
+      modal.querySelectorAll("[data-detail-tab]").forEach((button) => {
+        const active = button.dataset.detailTab === "purchase";
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-selected", active ? "true" : "false");
+      });
+      modal.querySelectorAll("[data-detail-pane]").forEach((pane) => {
+        pane.hidden = pane.dataset.detailPane !== "purchase";
+      });
+    }
     const adjust = modal.querySelector("#inventory-adjust-lead");
     const editor = modal.querySelector("#inventory-lead-editor");
     if (adjust && editor) {
@@ -5455,16 +5465,20 @@ window.__INVENTORY_SNAPSHOT_DATA_B64__ = "H4sIAAAAAAACE+y9W3Nd53Wm+1dYuI3MfOcD7t
           const row = this.tableRows[Number(button.dataset.index)];
           const snapshot = this.snapshots.find((item) => item.date === row?.snapshotDate) || this.snapshots[0];
           if (window.__INVENTORY_SNAPSHOT_MODE__ && snapshot) {
+            const label = button.textContent;
             button.disabled = true;
+            button.textContent = "加载中…";
             try {
               const details = await loadSnapshotDetails();
               row.purchaseRows = details.purchaseRowsByKey?.[row.key] || [];
               snapshot.data = { ...snapshot.data, fbaShipments: details.fbaShipments || [] };
             } catch (error) {
+              button.textContent = label;
               W.toast(error.message || "库存明细读取失败", "error");
               button.disabled = false;
               return;
             }
+            button.textContent = label;
             button.disabled = false;
           }
           openDetail(root, row, this._scope, snapshot ? snapshot.data : this.data, this);

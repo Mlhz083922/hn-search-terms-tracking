@@ -1,1591 +1,175 @@
 <!doctype html>
 <html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light">
-  <meta name="robots" content="noindex,nofollow">
-  <title>库存监控 · 型号细化｜展示快照</title>
-  <style>
-    :root {
-      --canvas: #f3f5f2;
-      --surface: #ffffff;
-      --ink: #192326;
-      --muted: #667476;
-      --line: #dce3df;
-      --line-strong: #c8d2cd;
-      --teal: #216b5f;
-      --teal-soft: #e7f1ed;
-      --amber: #b66b18;
-      --amber-soft: #fff4e4;
-      --blue: #3d6f88;
-      --blue-soft: #eaf2f6;
-      --clay: #a8583c;
-      --clay-soft: #f8ede8;
-      --radius: 8px;
-      --shadow: 0 8px 26px rgba(25, 35, 38, 0.06);
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    html {
-      min-width: 320px;
-      background: var(--canvas);
-    }
-
-    body {
-      margin: 0;
-      color: var(--ink);
-      background:
-        linear-gradient(var(--canvas), var(--canvas)),
-        repeating-linear-gradient(90deg, transparent 0, transparent 79px, rgba(25, 35, 38, 0.025) 80px);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
-        "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-      font-size: 14px;
-      line-height: 1.55;
-      letter-spacing: 0;
-    }
-
-    .page {
-      width: min(1440px, 100%);
-      margin: 0 auto;
-      background: rgba(243, 245, 242, 0.94);
-    }
-
-    .masthead {
-      padding: 24px clamp(20px, 4vw, 56px) 30px;
-      color: #f7faf8;
-      background: #1d292a;
-    }
-
-    .brandline {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      min-height: 30px;
-      color: #c7d3cf;
-      font-size: 12px;
-    }
-
-    .brandmark {
-      display: inline-grid;
-      width: 30px;
-      height: 30px;
-      place-items: center;
-      flex: 0 0 30px;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 6px;
-      color: #ffffff;
-      background: #2c7a6c;
-      font-size: 11px;
-      font-weight: 800;
-    }
-
-    .snapshot-tag {
-      margin-left: auto;
-      padding: 4px 9px;
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      border-radius: 999px;
-      color: #e5eeeb;
-      white-space: nowrap;
-    }
-
-    .masthead-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 28px;
-      align-items: end;
-      margin-top: 28px;
-    }
-
-    .eyebrow {
-      margin: 0 0 7px;
-      color: #8eb9ad;
-      font-size: 11px;
-      font-weight: 700;
-    }
-
-    h1 {
-      margin: 0;
-      font-size: clamp(28px, 3vw, 38px);
-      line-height: 1.16;
-      font-weight: 760;
-    }
-
-    .lede {
-      max-width: 720px;
-      margin: 10px 0 0;
-      color: #b9c7c3;
-      font-size: 14px;
-    }
-
-    .scope {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(120px, 1fr));
-      gap: 1px;
-      min-width: 292px;
-      overflow: hidden;
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      border-radius: var(--radius);
-      background: rgba(255, 255, 255, 0.12);
-    }
-
-    .scope-item {
-      padding: 12px 14px;
-      background: rgba(255, 255, 255, 0.055);
-    }
-
-    .scope-label {
-      display: block;
-      color: #91a29d;
-      font-size: 11px;
-    }
-
-    .scope-value {
-      display: block;
-      margin-top: 2px;
-      color: #ffffff;
-      font-size: 14px;
-      font-weight: 650;
-      white-space: nowrap;
-    }
-
-    main {
-      padding: 0 clamp(20px, 4vw, 56px) 42px;
-    }
-
-    .notice {
-      display: flex;
-      gap: 12px;
-      align-items: flex-start;
-      margin: 0 calc(clamp(20px, 4vw, 56px) * -1);
-      padding: 13px clamp(20px, 4vw, 56px);
-      border-top: 1px solid #efd2a9;
-      border-bottom: 1px solid #efd2a9;
-      color: #724415;
-      background: var(--amber-soft);
-    }
-
-    .notice svg {
-      flex: 0 0 auto;
-      margin-top: 2px;
-    }
-
-    .notice strong {
-      display: block;
-      margin-bottom: 1px;
-      color: #5e3510;
-      font-size: 13px;
-    }
-
-    .notice span {
-      display: block;
-      font-size: 12px;
-    }
-
-    .section {
-      padding-top: 28px;
-    }
-
-    .section-head {
-      display: flex;
-      align-items: end;
-      justify-content: space-between;
-      gap: 18px;
-      margin-bottom: 13px;
-    }
-
-    h2 {
-      margin: 0;
-      font-size: 18px;
-      line-height: 1.3;
-    }
-
-    .section-note {
-      margin: 0;
-      color: var(--muted);
-      font-size: 12px;
-      text-align: right;
-    }
-
-    .metrics {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    .metric {
-      position: relative;
-      min-width: 0;
-      padding: 17px 17px 15px;
-      overflow: hidden;
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: var(--surface);
-      box-shadow: var(--shadow);
-    }
-
-    .metric::before {
-      position: absolute;
-      top: 0;
-      right: 0;
-      left: 0;
-      height: 3px;
-      background: var(--line-strong);
-      content: "";
-    }
-
-    .metric.domestic::before {
-      background: var(--teal);
-    }
-
-    .metric.transit::before {
-      background: var(--amber);
-    }
-
-    .metric.fba::before {
-      background: var(--blue);
-    }
-
-    .metric.total::before {
-      background: var(--ink);
-    }
-
-    .metric-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .metric-icon {
-      display: inline-grid;
-      width: 28px;
-      height: 28px;
-      place-items: center;
-      flex: 0 0 28px;
-      border-radius: 6px;
-      color: var(--teal);
-      background: var(--teal-soft);
-    }
-
-    .transit .metric-icon {
-      color: var(--amber);
-      background: var(--amber-soft);
-    }
-
-    .fba .metric-icon {
-      color: var(--blue);
-      background: var(--blue-soft);
-    }
-
-    .total .metric-icon {
-      color: var(--ink);
-      background: #edf0ee;
-    }
-
-    .metric-value {
-      margin-top: 8px;
-      font-size: clamp(26px, 2.7vw, 34px);
-      line-height: 1.1;
-      font-weight: 760;
-      font-variant-numeric: tabular-nums;
-      overflow-wrap: anywhere;
-    }
-
-    .metric-detail {
-      min-height: 36px;
-      margin-top: 9px;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .metric-detail b {
-      color: var(--ink);
-      font-weight: 650;
-    }
-
-    .overview {
-      margin-top: 18px;
-      padding: 18px 20px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: var(--surface);
-    }
-
-    .overview-head {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 12px;
-    }
-
-    .overview-title {
-      font-size: 13px;
-      font-weight: 700;
-    }
-
-    .overview-sub {
-      color: var(--muted);
-      font-size: 12px;
-      text-align: right;
-    }
-
-    .stack {
-      display: flex;
-      width: 100%;
-      height: 14px;
-      overflow: hidden;
-      border-radius: 4px;
-      background: #edf0ee;
-    }
-
-    .stack span {
-      display: block;
-      height: 100%;
-    }
-
-    .stack-domestic {
-      width: 14.63%;
-      background: var(--teal);
-    }
-
-    .stack-transit {
-      width: 42.55%;
-      background: var(--amber);
-    }
-
-    .stack-fba {
-      width: 42.82%;
-      background: var(--blue);
-    }
-
-    .legend {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 18px;
-      margin-top: 12px;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .legend-item {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-    }
-
-    .legend-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 2px;
-    }
-
-    .legend b {
-      color: var(--ink);
-      font-weight: 650;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .analysis-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-      gap: 12px;
-    }
-
-    .analysis-card {
-      min-width: 0;
-      padding: 18px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: var(--surface);
-    }
-
-    .card-head {
-      display: flex;
-      align-items: start;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 16px;
-    }
-
-    .card-title {
-      margin: 0;
-      font-size: 14px;
-      font-weight: 700;
-    }
-
-    .card-kicker {
-      margin-top: 2px;
-      color: var(--muted);
-      font-size: 11px;
-    }
-
-    .card-total {
-      color: var(--muted);
-      font-size: 11px;
-      text-align: right;
-      white-space: nowrap;
-    }
-
-    .card-total strong {
-      display: block;
-      color: var(--ink);
-      font-size: 15px;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .bar-list {
-      display: grid;
-      gap: 12px;
-    }
-
-    .bar-row {
-      display: grid;
-      grid-template-columns: 78px minmax(90px, 1fr) 82px;
-      gap: 10px;
-      align-items: center;
-      min-width: 0;
-      font-size: 12px;
-    }
-
-    .bar-label {
-      overflow: hidden;
-      color: var(--ink);
-      font-weight: 620;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .bar-track {
-      height: 8px;
-      overflow: hidden;
-      border-radius: 2px;
-      background: #edf0ee;
-    }
-
-    .bar-fill {
-      height: 100%;
-      border-radius: 2px;
-      background: var(--teal);
-    }
-
-    .bar-row:nth-child(2) .bar-fill {
-      background: #397c73;
-    }
-
-    .bar-row:nth-child(3) .bar-fill {
-      background: var(--blue);
-    }
-
-    .bar-row:nth-child(4) .bar-fill {
-      background: #5c8195;
-    }
-
-    .bar-row:nth-child(n+5) .bar-fill {
-      background: #849693;
-    }
-
-    .model-row {
-      grid-template-columns: 92px minmax(90px, 1fr) 86px;
-    }
-
-    .bar-value {
-      color: var(--ink);
-      font-variant-numeric: tabular-nums;
-      text-align: right;
-      white-space: nowrap;
-    }
-
-    .bar-value small {
-      display: block;
-      color: var(--muted);
-      font-size: 10px;
-    }
-
-    .table-wrap {
-      overflow-x: auto;
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: var(--surface);
-      box-shadow: var(--shadow);
-    }
-
-    table {
-      width: 100%;
-      min-width: 1040px;
-      border-collapse: separate;
-      border-spacing: 0;
-      font-size: 12px;
-      font-variant-numeric: tabular-nums;
-    }
-
-    th,
-    td {
-      padding: 11px 12px;
-      border-bottom: 1px solid #e9eeeb;
-      text-align: right;
-      white-space: nowrap;
-    }
-
-    th {
-      position: sticky;
-      top: 0;
-      z-index: 1;
-      color: #536264;
-      background: #f6f8f6;
-      font-size: 11px;
-      font-weight: 650;
-    }
-
-    th:first-child,
-    td:first-child,
-    th:nth-child(2),
-    td:nth-child(2),
-    th:nth-child(3),
-    td:nth-child(3),
-    th:nth-child(4),
-    td:nth-child(4) {
-      text-align: left;
-    }
-
-    th:first-child,
-    td:first-child {
-      position: sticky;
-      left: 0;
-      z-index: 2;
-      background: var(--surface);
-    }
-
-    th:first-child {
-      z-index: 3;
-      background: #f6f8f6;
-    }
-
-    tbody tr:last-child td {
-      border-bottom: 0;
-    }
-
-    tbody tr:hover td {
-      background: #f8faf8;
-    }
-
-    tbody tr:hover td:first-child {
-      background: #f8faf8;
-    }
-
-    .model-name {
-      color: var(--teal);
-      font-weight: 720;
-    }
-
-    .model-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 3px;
-      max-width: 100%;
-      padding: 0;
-      border: 0;
-      color: var(--teal);
-      background: transparent;
-      font: inherit;
-      font-weight: 720;
-      text-align: left;
-      text-decoration: underline;
-      text-decoration-color: #a9c7bf;
-      text-decoration-thickness: 1px;
-      text-underline-offset: 3px;
-      cursor: pointer;
-    }
-
-    .model-link:hover {
-      color: #154f46;
-      text-decoration-color: currentColor;
-    }
-
-    .model-link:focus-visible {
-      outline: 2px solid var(--teal);
-      outline-offset: 3px;
-      border-radius: 2px;
-    }
-
-    .model-link svg {
-      flex: 0 0 auto;
-      opacity: 0.72;
-    }
-
-    .model-row .model-link {
-      color: var(--ink);
-      font-size: 12px;
-      text-decoration-color: #b5c2bd;
-    }
-
-    .model-row .model-link:hover {
-      color: var(--teal);
-      text-decoration-color: currentColor;
-    }
-
-    .total-cell {
-      color: var(--ink);
-      font-weight: 760;
-    }
-
-    .site-mark {
-      display: inline-grid;
-      min-width: 30px;
-      height: 22px;
-      padding: 0 6px;
-      place-items: center;
-      border: 1px solid #d9e2de;
-      border-radius: 4px;
-      color: #40524f;
-      background: #fafcfb;
-      font-size: 10px;
-      font-weight: 700;
-    }
-
-    .status {
-      display: inline-block;
-      max-width: 190px;
-      overflow: hidden;
-      padding: 3px 7px;
-      border-radius: 4px;
-      color: #2b5e54;
-      background: var(--teal-soft);
-      text-overflow: ellipsis;
-      vertical-align: middle;
-    }
-
-    .status.amber {
-      color: #7c4a12;
-      background: var(--amber-soft);
-    }
-
-    .status.clay {
-      color: #814a38;
-      background: var(--clay-soft);
-    }
-
-    .footnote-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: 28px;
-      margin-top: 22px;
-      padding-top: 18px;
-      border-top: 1px solid var(--line-strong);
-      color: var(--muted);
-      font-size: 11px;
-    }
-
-    .footnote-grid p {
-      margin: 0;
-    }
-
-    .source {
-      color: #4e5e61;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      overflow-wrap: anywhere;
-    }
-
-    .transit-dialog {
-      width: min(580px, calc(100vw - 32px));
-      max-height: min(760px, calc(100vh - 32px));
-      margin: auto;
-      padding: 0;
-      overflow: hidden;
-      border: 1px solid #cfd9d4;
-      border-radius: var(--radius);
-      color: var(--ink);
-      background: var(--surface);
-      box-shadow: 0 24px 70px rgba(16, 28, 26, 0.24);
-    }
-
-    .transit-dialog::backdrop {
-      background: rgba(18, 28, 27, 0.46);
-      backdrop-filter: blur(2px);
-    }
-
-    .dialog-head {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 20px;
-      padding: 20px 22px 17px;
-      border-bottom: 1px solid var(--line);
-      background: #f8faf8;
-    }
-
-    .dialog-kicker {
-      margin-bottom: 3px;
-      color: var(--teal);
-      font-size: 11px;
-      font-weight: 700;
-    }
-
-    .dialog-title {
-      margin: 0;
-      font-size: 24px;
-      line-height: 1.2;
-    }
-
-    .dialog-meta {
-      margin-top: 6px;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .dialog-close {
-      display: inline-grid;
-      width: 32px;
-      height: 32px;
-      place-items: center;
-      flex: 0 0 32px;
-      padding: 0;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      color: #51605e;
-      background: var(--surface);
-      cursor: pointer;
-    }
-
-    .dialog-close:hover {
-      color: var(--ink);
-      border-color: var(--line-strong);
-      background: #f3f6f4;
-    }
-
-    .dialog-close:focus-visible {
-      outline: 2px solid var(--teal);
-      outline-offset: 2px;
-    }
-
-    .dialog-body {
-      max-height: calc(100vh - 174px);
-      padding: 20px 22px 22px;
-      overflow-y: auto;
-    }
-
-    .transit-summary {
-      padding: 15px 16px;
-      border: 1px solid #d8e3df;
-      border-radius: var(--radius);
-      background: #f5f9f7;
-    }
-
-    .transit-summary-head {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 10px;
-    }
-
-    .transit-summary-head span {
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .transit-summary-head strong {
-      font-size: 25px;
-      line-height: 1.1;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .transit-stack {
-      display: flex;
-      width: 100%;
-      height: 10px;
-      overflow: hidden;
-      border-radius: 3px;
-      background: #e3e9e6;
-    }
-
-    .transit-stack-domestic {
-      width: 0;
-      background: var(--amber);
-    }
-
-    .transit-stack-fba {
-      width: 0;
-      background: var(--blue);
-    }
-
-    .transit-split {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-      margin-top: 12px;
-    }
-
-    .transit-cell {
-      min-width: 0;
-      padding: 12px 13px;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      background: var(--surface);
-    }
-
-    .transit-cell-label {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      color: var(--muted);
-      font-size: 11px;
-    }
-
-    .transit-cell-label i {
-      display: block;
-      width: 7px;
-      height: 7px;
-      border-radius: 2px;
-      background: var(--amber);
-    }
-
-    .transit-cell.fba .transit-cell-label i {
-      background: var(--blue);
-    }
-
-    .transit-cell-value {
-      display: block;
-      margin-top: 4px;
-      font-size: 21px;
-      font-weight: 750;
-      font-variant-numeric: tabular-nums;
-      overflow-wrap: anywhere;
-    }
-
-    .transit-cell-share {
-      display: block;
-      margin-top: 1px;
-      color: var(--muted);
-      font-size: 10px;
-    }
-
-    .dialog-section {
-      margin-top: 20px;
-    }
-
-    .dialog-section-title {
-      margin: 0 0 10px;
-      font-size: 13px;
-    }
-
-    .inventory-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 1px;
-      overflow: hidden;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      background: var(--line);
-    }
-
-    .inventory-cell {
-      padding: 11px 12px;
-      background: var(--surface);
-    }
-
-    .inventory-cell span {
-      display: block;
-      color: var(--muted);
-      font-size: 10px;
-    }
-
-    .inventory-cell strong {
-      display: block;
-      margin-top: 3px;
-      font-size: 15px;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .batch-note {
-      margin: 0;
-      padding: 12px 13px;
-      border-left: 3px solid var(--teal);
-      color: #445654;
-      background: #f5f8f6;
-      font-size: 12px;
-    }
-
-    .batch-note strong {
-      color: var(--ink);
-    }
-
-    .dialog-footnote {
-      margin: 16px 0 0;
-      color: var(--muted);
-      font-size: 10px;
-    }
-
-    @media (max-width: 1020px) {
-      .masthead-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .scope {
-        width: min(100%, 460px);
-      }
-
-      .metrics {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-
-      .analysis-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media (max-width: 640px) {
-      .masthead {
-        padding-top: 18px;
-      }
-
-      .brandline {
-        flex-wrap: wrap;
-      }
-
-      .snapshot-tag {
-        width: 100%;
-        margin-left: 42px;
-        border: 0;
-        border-radius: 0;
-        padding: 0;
-      }
-
-      .masthead-grid {
-        margin-top: 20px;
-      }
-
-      .scope {
-        min-width: 0;
-      }
-
-      .scope-item {
-        padding: 10px 11px;
-      }
-
-      .scope-value {
-        font-size: 12px;
-      }
-
-      .metrics {
-        grid-template-columns: 1fr;
-      }
-
-      .metric-detail {
-        min-height: 0;
-      }
-
-      .section-head {
-        display: block;
-      }
-
-      .section-note {
-        margin-top: 4px;
-        text-align: left;
-      }
-
-      .overview-head {
-        display: block;
-      }
-
-      .overview-sub {
-        margin-top: 2px;
-        text-align: left;
-      }
-
-      .card-head {
-        display: block;
-      }
-
-      .card-total {
-        margin-top: 8px;
-        text-align: left;
-      }
-
-      .card-total strong {
-        display: inline;
-        margin-left: 6px;
-      }
-
-      .bar-row {
-        grid-template-columns: 62px minmax(70px, 1fr) 74px;
-        gap: 8px;
-      }
-
-      .model-row {
-        grid-template-columns: 82px minmax(70px, 1fr) 80px;
-      }
-
-      .footnote-grid {
-        grid-template-columns: 1fr;
-        gap: 12px;
-      }
-
-      .transit-dialog {
-        width: calc(100vw - 20px);
-        max-height: calc(100vh - 20px);
-      }
-
-      .dialog-head {
-        padding: 17px 16px 14px;
-      }
-
-      .dialog-body {
-        max-height: calc(100vh - 150px);
-        padding: 16px;
-      }
-
-      .inventory-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-
-      .inventory-cell:last-child {
-        grid-column: 1 / -1;
-      }
-    }
-
-    @media print {
-      body {
-        background: #ffffff;
-      }
-
-      .page {
-        width: 100%;
-      }
-
-      .masthead {
-        print-color-adjust: exact;
-      }
-
-      .metric,
-      .overview,
-      .analysis-card,
-      .table-wrap {
-        box-shadow: none;
-      }
-    }
-  </style>
-</head>
-<body>
-  <div class="page">
-    <header class="masthead">
-      <div class="brandline">
-        <span class="brandmark">HN</span>
-        <span>亚马逊运营工作台</span>
-        <span class="snapshot-tag">团队展示快照 · 2026-11-03</span>
-      </div>
-      <div class="masthead-grid">
-        <div>
-          <p class="eyebrow">INVENTORY / MODEL VIEW</p>
-          <h1>库存监控 · 型号细化</h1>
-          <p class="lede">HN运营组产品总览，纳入已上架型号及已有国内采购在途的新型号。</p>
-        </div>
-        <div class="scope" aria-label="快照范围">
-          <div class="scope-item">
-            <span class="scope-label">数据日期</span>
-            <span class="scope-value">2026-11-02</span>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>亚马逊运营工作台</title>
+    <link rel="icon" href="favicon.ico" type="image/x-icon" />
+    <link rel="icon" href="favicon.png" type="image/png" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar">
+        <div class="brand">
+          <span class="brand-mark" id="brand-mark">
+            <img src="favicon.png" alt="" />
+          </span>
+          <div class="brand-text">
+            <strong>亚马逊运营工作台</strong>
+            <small>Amazon Ops Workbench</small>
           </div>
-          <div class="scope-item">
-            <span class="scope-label">筛选结果</span>
-            <span class="scope-value">758 行</span>
-          </div>
-          <div class="scope-item">
-            <span class="scope-label">视图</span>
-            <span class="scope-value">型号汇总</span>
-          </div>
-          <div class="scope-item">
-            <span class="scope-label">数据范围</span>
-            <span class="scope-value">华南服装仓</span>
-          </div>
-        </div>
-      </div>
-    </header>
-
-    <main>
-      <div class="notice" role="note">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path>
-          <path d="M12 9v4"></path>
-          <path d="M12 17h.01"></path>
-        </svg>
-        <div>
-          <strong>当前展示的是旧快照，不建议直接用于调拨决策。</strong>
-          <span>源页面提示：数据截至 2026-11-02，FBA 调拨明细可能未包含最新调拨单；用于正式判断前需重新登录 OA 并同步。</span>
-        </div>
-      </div>
-
-      <section class="section" aria-labelledby="summary-title">
-        <div class="section-head">
-          <h2 id="summary-title">全量总览</h2>
-          <p class="section-note">筛选条件：仅看有库存/在途 · 全部型号 · 全部站点</p>
-        </div>
-        <div class="metrics">
-          <article class="metric domestic">
-            <div class="metric-top">
-              <span>国内在仓</span>
-              <span class="metric-icon" aria-hidden="true">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M3 21h18"></path>
-                  <path d="M5 21V7l7-4 7 4v14"></path>
-                  <path d="M9 21v-4h6v4"></path>
-                </svg>
-              </span>
-            </div>
-            <div class="metric-value">80,052</div>
-            <div class="metric-detail">团队库存报表 · <b>华南服装仓</b></div>
-          </article>
-
-          <article class="metric transit">
-            <div class="metric-top">
-              <span>国内在途</span>
-              <span class="metric-icon" aria-hidden="true">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"></path>
-                  <path d="M15 18H9"></path>
-                  <path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"></path>
-                  <circle cx="17" cy="18" r="2"></circle>
-                  <circle cx="7" cy="18" r="2"></circle>
-                </svg>
-              </span>
-            </div>
-            <div class="metric-value">232,769</div>
-            <div class="metric-detail"><b>103,553 件</b>采购在途，其余为仓间/调拨在途</div>
-          </article>
-
-          <article class="metric fba">
-            <div class="metric-top">
-              <span>FBA 总库存</span>
-              <span class="metric-icon" aria-hidden="true">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path>
-                  <path d="m3.3 7 8.7 5 8.7-5"></path>
-                  <path d="M12 22V12"></path>
-                </svg>
-              </span>
-            </div>
-            <div class="metric-value">234,263</div>
-            <div class="metric-detail">FBA 在仓 <b>180,786</b> + FBA 在途 <b>53,477</b></div>
-          </article>
-
-          <article class="metric total">
-            <div class="metric-top">
-              <span>当前视图总库存</span>
-              <span class="metric-icon" aria-hidden="true">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M3 3v18h18"></path>
-                  <path d="m7 16 4-5 4 3 5-7"></path>
-                </svg>
-              </span>
-            </div>
-            <div class="metric-value">547,084</div>
-            <div class="metric-detail">范围内共 <b>758 行</b>型号/站点明细</div>
-          </article>
-        </div>
-
-        <div class="overview">
-          <div class="overview-head">
-            <span class="overview-title">库存结构</span>
-            <span class="overview-sub">国内在仓 + 国内在途 + FBA 总库存 = 547,084</span>
-          </div>
-          <div class="stack" aria-label="库存结构：国内在仓 14.63%，国内在途 42.55%，FBA 总库存 42.82%">
-            <span class="stack-domestic"></span>
-            <span class="stack-transit"></span>
-            <span class="stack-fba"></span>
-          </div>
-          <div class="legend">
-            <span class="legend-item"><i class="legend-dot" style="background:#216b5f"></i>国内在仓 <b>14.63%</b></span>
-            <span class="legend-item"><i class="legend-dot" style="background:#b66b18"></i>国内在途 <b>42.55%</b></span>
-            <span class="legend-item"><i class="legend-dot" style="background:#3d6f88"></i>FBA 总库存 <b>42.82%</b></span>
-          </div>
-        </div>
-      </section>
-
-      <section class="section" aria-labelledby="structure-title">
-        <div class="section-head">
-          <h2 id="structure-title">当前页结构</h2>
-          <p class="section-note">基于首屏可见的 100 条明细，不等同于 758 行全量结构</p>
-        </div>
-        <div class="analysis-grid">
-          <article class="analysis-card">
-            <div class="card-head">
-              <div>
-                <h3 class="card-title">站点分布</h3>
-                <div class="card-kicker">按当前可见明细的总库存汇总</div>
-              </div>
-              <div class="card-total">可见库存<strong>387,436</strong></div>
-            </div>
-            <div class="bar-list">
-              <div class="bar-row">
-                <span class="bar-label">US</span>
-                <span class="bar-track"><span class="bar-fill" style="width:100%"></span></span>
-                <span class="bar-value">162,364 <small>41.9%</small></span>
-              </div>
-              <div class="bar-row">
-                <span class="bar-label">DE</span>
-                <span class="bar-track"><span class="bar-fill" style="width:60.2%"></span></span>
-                <span class="bar-value">97,686 <small>25.2%</small></span>
-              </div>
-              <div class="bar-row">
-                <span class="bar-label">UK</span>
-                <span class="bar-track"><span class="bar-fill" style="width:46.9%"></span></span>
-                <span class="bar-value">76,111 <small>19.6%</small></span>
-              </div>
-              <div class="bar-row">
-                <span class="bar-label">CA</span>
-                <span class="bar-track"><span class="bar-fill" style="width:30.4%"></span></span>
-                <span class="bar-value">49,415 <small>12.8%</small></span>
-              </div>
-              <div class="bar-row">
-                <span class="bar-label">待确认</span>
-                <span class="bar-track"><span class="bar-fill" style="width:1.1%"></span></span>
-                <span class="bar-value">1,860 <small>0.5%</small></span>
-              </div>
-            </div>
-          </article>
-
-          <article class="analysis-card">
-            <div class="card-head">
-              <div>
-                <h3 class="card-title">型号库存 TOP 8</h3>
-                <div class="card-kicker">当前可见明细 · 跨站点汇总</div>
-              </div>
-              <div class="card-total">TOP 1 占比<strong>10.3%</strong></div>
-            </div>
-            <div class="bar-list">
-              <div class="bar-row model-row">
-                <button class="bar-label model-link" type="button" aria-haspopup="dialog" aria-label="查看 HN0022S26 在途明细" title="查看在途明细" data-model="HN0022S26" data-site="DE / UK / US / CA" data-owner="当前页 4 个站点汇总" data-category="坦基尼" data-domestic="4633" data-transit="21122" data-fba="14145" data-fba-transit="2451" data-total="39900" data-batches="" data-ship="-" data-eta="-">HN0022S26 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"></path><path d="M7 7h10v10"></path></svg></button>
-                <span class="bar-track"><span class="bar-fill" style="width:100%"></span></span>
-                <span class="bar-value">39,900 <small>4 个站点</small></span>
-              </div>
-              <div class="bar-row model-row">
-                <button class="bar-label model-link" type="button" aria-haspopup="dialog" aria-label="查看 HN0033S25 在途明细" title="查看在途明细" data-model="HN0033S25" data-site="US / DE / UK / CA" data-owner="当前页 4 个站点汇总" data-category="连体式" data-domestic="1579" data-transit="15952" data-fba="11646" data-fba-transit="2813" data-total="29177" data-batches="" data-ship="-" data-eta="-">HN0033S25 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"></path><path d="M7 7h10v10"></path></svg></button>
-                <span class="bar-track"><span class="bar-fill" style="width:73.1%"></span></span>
-                <span class="bar-value">29,177 <small>4 个站点</small></span>
-              </div>
-              <div class="bar-row model-row">
-                <button class="bar-label model-link" type="button" aria-haspopup="dialog" aria-label="查看 HN0010S26 在途明细" title="查看在途明细" data-model="HN0010S26" data-site="US / CA / DE / UK" data-owner="当前页 4 个站点汇总" data-category="坦基尼" data-domestic="1729" data-transit="16305" data-fba="5074" data-fba-transit="386" data-total="23108" data-batches="" data-ship="-" data-eta="-">HN0010S26 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"></path><path d="M7 7h10v10"></path></svg></button>
-                <span class="bar-track"><span class="bar-fill" style="width:57.9%"></span></span>
-                <span class="bar-value">23,108 <small>4 个站点</small></span>
-              </div>
-              <div class="bar-row model-row">
-                <button class="bar-label model-link" type="button" aria-haspopup="dialog" aria-label="查看 HN0017S26 在途明细" title="查看在途明细" data-model="HN0017S26" data-site="CA / US / DE / UK" data-owner="当前页 4 个站点汇总" data-category="坦基尼" data-domestic="503" data-transit="10004" data-fba="9574" data-fba-transit="1133" data-total="20081" data-batches="" data-ship="-" data-eta="-">HN0017S26 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"></path><path d="M7 7h10v10"></path></svg></button>
-                <span class="bar-track"><span class="bar-fill" style="width:50.3%"></span></span>
-                <span class="bar-value">20,081 <small>4 个站点</small></span>
-              </div>
-              <div class="bar-row model-row">
-                <button class="bar-label model-link" type="button" aria-haspopup="dialog" aria-label="查看 HN0041S26 在途明细" title="查看在途明细" data-model="HN0041S26" data-site="US / UK / DE" data-owner="当前页 3 个站点汇总" data-category="上装" data-domestic="2716" data-transit="11376" data-fba="3871" data-fba-transit="1854" data-total="17963" data-batches="" data-ship="-" data-eta="-">HN0041S26 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"></path><path d="M7 7h10v10"></path></svg></button>
-                <span class="bar-track"><span class="bar-fill" style="width:45%"></span></span>
-                <span class="bar-value">17,963 <small>3 个站点</small></span>
-              </div>
-              <div class="bar-row model-row">
-                <button class="bar-label model-link" type="button" aria-haspopup="dialog" aria-label="查看 HN0043S26 在途明细" title="查看在途明细" data-model="HN0043S26" data-site="US / DE / UK / CA" data-owner="当前页 4 个站点汇总" data-category="上装" data-domestic="1854" data-transit="9570" data-fba="4669" data-fba-transit="1948" data-total="16093" data-batches="" data-ship="-" data-eta="-">HN0043S26 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"></path><path d="M7 7h10v10"></path></svg></button>
-                <span class="bar-track"><span class="bar-fill" style="width:40.3%"></span></span>
-                <span class="bar-value">16,093 <small>4 个站点</small></span>
-              </div>
-              <div class="bar-row model-row">
-                <button class="bar-label model-link" type="button" aria-haspopup="dialog" aria-label="查看 HN0036A24 在途明细" title="查看在途明细" data-model="HN0036A24" data-site="US / DE / UK" data-owner="当前页 3 个站点汇总" data-category="多站点汇总" data-domestic="1051" data-transit="8394" data-fba="5634" data-fba-transit="2004" data-total="15079" data-batches="" data-ship="-" data-eta="-">HN0036A24 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"></path><path d="M7 7h10v10"></path></svg></button>
-                <span class="bar-track"><span class="bar-fill" style="width:37.8%"></span></span>
-                <span class="bar-value">15,079 <small>3 个站点</small></span>
-              </div>
-              <div class="bar-row model-row">
-                <button class="bar-label model-link" type="button" aria-haspopup="dialog" aria-label="查看 HN0045S26 在途明细" title="查看在途明细" data-model="HN0045S26" data-site="DE / UK / CA / US" data-owner="当前页 4 个站点汇总" data-category="多站点汇总" data-domestic="867" data-transit="7362" data-fba="4868" data-fba-transit="776" data-total="13097" data-batches="" data-ship="-" data-eta="-">HN0045S26 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"></path><path d="M7 7h10v10"></path></svg></button>
-                <span class="bar-track"><span class="bar-fill" style="width:32.8%"></span></span>
-                <span class="bar-value">13,097 <small>4 个站点</small></span>
-              </div>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <section class="section" aria-labelledby="detail-title">
-        <div class="section-head">
-          <h2 id="detail-title">重点明细</h2>
-          <p class="section-note">源页面当前排序前 10 条 · 筛选结果共 758 行</p>
-        </div>
-        <div class="table-wrap">
-          <table aria-label="库存监控重点明细">
-            <thead>
-              <tr>
-                <th scope="col">型号</th>
-                <th scope="col">站点</th>
-                <th scope="col">销售</th>
-                <th scope="col">分类</th>
-                <th scope="col">国内在仓</th>
-                <th scope="col">国内在途</th>
-                <th scope="col">FBA 总库存</th>
-                <th scope="col">FBA 在途</th>
-                <th scope="col">总库存</th>
-                <th scope="col">状态</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td class="model-name"><button class="model-link" type="button" aria-haspopup="dialog" aria-label="查看 HN0022S26 DE 在途明细" title="查看在途明细" data-model="HN0022S26" data-site="DE" data-owner="郑思绮" data-category="坦基尼" data-domestic="333" data-transit="8085" data-fba="4041" data-fba-transit="0" data-total="12459" data-batches="0" data-ship="-" data-eta="-">HN0022S26</button></td>
-                <td><span class="site-mark">DE</span></td>
-                <td>郑思绮</td>
-                <td>坦基尼</td>
-                <td>333</td>
-                <td>8,085</td>
-                <td>4,041</td>
-                <td>0</td>
-                <td class="total-cell">12,459</td>
-                <td><span class="status">正常销售中</span></td>
-              </tr>
-              <tr>
-                <td class="model-name"><button class="model-link" type="button" aria-haspopup="dialog" aria-label="查看 HN0033S25 US 在途明细" title="查看在途明细" data-model="HN0033S25" data-site="US" data-owner="温爱婷" data-category="连体式" data-domestic="1423" data-transit="2948" data-fba="7782" data-fba-transit="1483" data-total="12153" data-batches="19" data-ship="2026-06-03 08:16" data-eta="2026-06-23 ~ 2026-12-04">HN0033S25</button></td>
-                <td><span class="site-mark">US</span></td>
-                <td>温爱婷</td>
-                <td>连体式</td>
-                <td>1,423</td>
-                <td>2,948</td>
-                <td>7,782</td>
-                <td>1,483</td>
-                <td class="total-cell">12,153</td>
-                <td><span class="status amber">重点推广 +5</span></td>
-              </tr>
-              <tr>
-                <td class="model-name"><button class="model-link" type="button" aria-haspopup="dialog" aria-label="查看 HN0022S26 UK 在途明细" title="查看在途明细" data-model="HN0022S26" data-site="UK" data-owner="郑思绮" data-category="坦基尼" data-domestic="333" data-transit="8085" data-fba="2567" data-fba-transit="0" data-total="10985" data-batches="0" data-ship="-" data-eta="-">HN0022S26</button></td>
-                <td><span class="site-mark">UK</span></td>
-                <td>郑思绮</td>
-                <td>坦基尼</td>
-                <td>333</td>
-                <td>8,085</td>
-                <td>2,567</td>
-                <td>0</td>
-                <td class="total-cell">10,985</td>
-                <td><span class="status">正常销售中</span></td>
-              </tr>
-              <tr>
-                <td class="model-name"><button class="model-link" type="button" aria-haspopup="dialog" aria-label="查看 HN0022S26 US 在途明细" title="查看在途明细" data-model="HN0022S26" data-site="US" data-owner="温爱婷" data-category="坦基尼" data-domestic="3844" data-transit="1591" data-fba="5466" data-fba-transit="1198" data-total="10901" data-batches="16" data-ship="2026-06-23 04:43" data-eta="2026-07-13 ~ 2026-12-04">HN0022S26</button></td>
-                <td><span class="site-mark">US</span></td>
-                <td>温爱婷</td>
-                <td>坦基尼</td>
-                <td>3,844</td>
-                <td>1,591</td>
-                <td>5,466</td>
-                <td>1,198</td>
-                <td class="total-cell">10,901</td>
-                <td><span class="status amber">重点推广 +1</span></td>
-              </tr>
-              <tr>
-                <td class="model-name"><button class="model-link" type="button" aria-haspopup="dialog" aria-label="查看 HN0043S26 US 在途明细" title="查看在途明细" data-model="HN0043S26" data-site="US" data-owner="邱泽星" data-category="上装" data-domestic="177" data-transit="7520" data-fba="1927" data-fba-transit="302" data-total="9624" data-batches="16" data-ship="2026-06-17 04:33" data-eta="2026-07-07 ~ 2026-12-04">HN0043S26</button></td>
-                <td><span class="site-mark">US</span></td>
-                <td>邱泽星</td>
-                <td>上装</td>
-                <td>177</td>
-                <td>7,520</td>
-                <td>1,927</td>
-                <td>302</td>
-                <td class="total-cell">9,624</td>
-                <td><span class="status">正常销售中</span></td>
-              </tr>
-              <tr>
-                <td class="model-name"><button class="model-link" type="button" aria-haspopup="dialog" aria-label="查看 HN0010S26 US 在途明细" title="查看在途明细" data-model="HN0010S26" data-site="US" data-owner="金天" data-category="坦基尼" data-domestic="4" data-transit="7817" data-fba="1660" data-fba-transit="276" data-total="9481" data-batches="12" data-ship="2026-06-03 08:16" data-eta="2026-06-23 ~ 2026-12-05">HN0010S26</button></td>
-                <td><span class="site-mark">US</span></td>
-                <td>金天</td>
-                <td>坦基尼</td>
-                <td>4</td>
-                <td>7,817</td>
-                <td>1,660</td>
-                <td>276</td>
-                <td class="total-cell">9,481</td>
-                <td><span class="status">正常销售中 +1</span></td>
-              </tr>
-              <tr>
-                <td class="model-name"><button class="model-link" type="button" aria-haspopup="dialog" aria-label="查看 HN0041S26 US 在途明细" title="查看在途明细" data-model="HN0041S26" data-site="US" data-owner="温爱婷" data-category="上装" data-domestic="1904" data-transit="2486" data-fba="3801" data-fba-transit="1854" data-total="8191" data-batches="18" data-ship="2026-06-17 04:33" data-eta="2026-07-07 ~ 2026-12-04">HN0041S26</button></td>
-                <td><span class="site-mark">US</span></td>
-                <td>温爱婷</td>
-                <td>上装</td>
-                <td>1,904</td>
-                <td>2,486</td>
-                <td>3,801</td>
-                <td>1,854</td>
-                <td class="total-cell">8,191</td>
-                <td><span class="status amber">重点推广 +1</span></td>
-              </tr>
-              <tr>
-                <td class="model-name"><button class="model-link" type="button" aria-haspopup="dialog" aria-label="查看 HN0333S23 US 在途明细" title="查看在途明细" data-model="HN0333S23" data-site="US" data-owner="温爱婷" data-category="分体式 / 坦基尼" data-domestic="304" data-transit="3643" data-fba="3682" data-fba-transit="70" data-total="7629" data-batches="9" data-ship="2026-06-23 04:43" data-eta="2026-07-13 ~ 2026-12-02">HN0333S23</button></td>
-                <td><span class="site-mark">US</span></td>
-                <td>温爱婷</td>
-                <td>分体式 / 坦基尼</td>
-                <td>304</td>
-                <td>3,643</td>
-                <td>3,682</td>
-                <td>70</td>
-                <td class="total-cell">7,629</td>
-                <td><span class="status clay">正常销售中 +3</span></td>
-              </tr>
-              <tr>
-                <td class="model-name"><button class="model-link" type="button" aria-haspopup="dialog" aria-label="查看 JB0007S21 DE 在途明细" title="查看在途明细" data-model="JB0007S21" data-site="DE" data-owner="郑思绮" data-category="坦基尼" data-domestic="2" data-transit="2255" data-fba="5232" data-fba-transit="0" data-total="7489" data-batches="0" data-ship="-" data-eta="-">JB0007S21</button></td>
-                <td><span class="site-mark">DE</span></td>
-                <td>郑思绮</td>
-                <td>坦基尼</td>
-                <td>2</td>
-                <td>2,255</td>
-                <td>5,232</td>
-                <td>0</td>
-                <td class="total-cell">7,489</td>
-                <td><span class="status clay">重点推广 +2</span></td>
-              </tr>
-              <tr>
-                <td class="model-name"><button class="model-link" type="button" aria-haspopup="dialog" aria-label="查看 HN0033S25 DE 在途明细" title="查看在途明细" data-model="HN0033S25" data-site="DE" data-owner="郑思绮" data-category="连体式" data-domestic="77" data-transit="5275" data-fba="1492" data-fba-transit="0" data-total="6844" data-batches="0" data-ship="-" data-eta="-">HN0033S25</button></td>
-                <td><span class="site-mark">DE</span></td>
-                <td>郑思绮</td>
-                <td>连体式</td>
-                <td>77</td>
-                <td>5,275</td>
-                <td>1,492</td>
-                <td>0</td>
-                <td class="total-cell">6,844</td>
-                <td><span class="status clay">正常销售中 +1</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <dialog class="transit-dialog" id="transitDialog" aria-labelledby="dialogTitle">
-        <div class="dialog-head">
-          <div>
-            <div class="dialog-kicker">在途拆分</div>
-            <h2 class="dialog-title" id="dialogTitle">型号</h2>
-            <div class="dialog-meta" id="dialogMeta"></div>
-          </div>
-          <button class="dialog-close" id="dialogClose" type="button" aria-label="关闭在途明细">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M18 6 6 18"></path>
-              <path d="m6 6 12 12"></path>
-            </svg>
+          <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" title="收起侧边栏" aria-label="收起侧边栏">
+            <i data-lucide="PanelLeftClose"></i>
           </button>
         </div>
-        <div class="dialog-body">
-          <div class="transit-summary">
-            <div class="transit-summary-head">
-              <span>在途合计</span>
-              <strong id="transitSum">0</strong>
-            </div>
-            <div class="transit-stack" aria-label="国内在途与 FBA 在途占比">
-              <span class="transit-stack-domestic" id="domesticBar"></span>
-              <span class="transit-stack-fba" id="fbaTransitBar"></span>
-            </div>
-            <div class="transit-split">
-              <div class="transit-cell">
-                <span class="transit-cell-label"><i></i>国内在途</span>
-                <strong class="transit-cell-value" id="domesticTransit">0</strong>
-                <span class="transit-cell-share" id="domesticShare">占在途 0%</span>
-              </div>
-              <div class="transit-cell fba">
-                <span class="transit-cell-label"><i></i>FBA 在途</span>
-                <strong class="transit-cell-value" id="fbaTransit">0</strong>
-                <span class="transit-cell-share" id="fbaShare">占在途 0%</span>
-              </div>
-            </div>
+
+        <nav class="side-nav" aria-label="主导航">
+          <button class="nav-item" data-view="knowledge" data-lucide-icon="BookOpen">
+            <i data-lucide="BookOpen"></i><span>知识库与指南</span>
+          </button>
+          <button class="nav-group" data-group="products">
+            <i data-lucide="FolderKanban"></i><span class="nav-group-label">产品档案</span>
+            <i data-lucide="ChevronDown" class="nav-group-caret"></i>
+          </button>
+          <div class="nav-group-items" data-group-items="products">
+            <button class="nav-item" data-view="products" data-lucide-icon="FolderKanban">
+              <i data-lucide="FolderKanban"></i><span>基础资料</span>
+            </button>
+            <button class="nav-item" data-view="listing-mapping" data-lucide-icon="ListTree">
+              <i data-lucide="ListTree"></i><span>Listing映射</span>
+            </button>
           </div>
 
-          <section class="dialog-section" aria-labelledby="stock-title">
-            <h3 class="dialog-section-title" id="stock-title">库存位置</h3>
-            <div class="inventory-grid">
-              <div class="inventory-cell">
-                <span>国内在仓</span>
-                <strong id="stockDomestic">0</strong>
-              </div>
-              <div class="inventory-cell">
-                <span>FBA 总库存</span>
-                <strong id="stockFba">0</strong>
-              </div>
-              <div class="inventory-cell">
-                <span>当前总库存</span>
-                <strong id="stockTotal">0</strong>
-              </div>
-            </div>
-          </section>
+          <button class="nav-group" data-group="market">
+            <i data-lucide="LineChart"></i>
+            <span class="nav-group-label">市场调研</span>
+            <i data-lucide="ChevronDown" class="nav-group-caret"></i>
+          </button>
+          <div class="nav-group-items" data-group-items="market">
+            <button class="nav-item" data-view="keywords" data-lucide-icon="Search">
+              <i data-lucide="Search"></i><span>热搜词追踪</span>
+            </button>
+            <button class="nav-item is-active" data-view="category" data-lucide-icon="Layers" aria-current="page">
+              <i data-lucide="Layers"></i><span>榜单分析</span>
+            </button>
+            <button class="nav-item" data-view="competitor" data-lucide-icon="Users">
+              <i data-lucide="Users"></i><span>竞品分析</span>
+            </button>
+          </div>
 
-          <section class="dialog-section" aria-labelledby="batch-title">
-            <h3 class="dialog-section-title" id="batch-title">批次信息</h3>
-            <p class="batch-note" id="batchNote"></p>
-          </section>
+          <button class="nav-group" data-group="listing">
+            <i data-lucide="ClipboardList"></i>
+            <span class="nav-group-label">Listing优化</span>
+            <i data-lucide="ChevronDown" class="nav-group-caret"></i>
+          </button>
+          <div class="nav-group-items" data-group-items="listing">
+            <button class="nav-item" data-view="listing" data-lucide-icon="FileSpreadsheet">
+              <i data-lucide="FileSpreadsheet"></i><span>Listing 文案与上架表格</span>
+            </button>
+            <button class="nav-item" data-view="tmblacklist" data-lucide-icon="ShieldAlert">
+              <i data-lucide="ShieldAlert"></i><span>侵权词</span>
+            </button>
+          </div>
 
-          <p class="dialog-footnote">数据来自 2026-11-02 展示快照；批次明细可能未包含最新调拨单，正式决策前请以同步后的源页面为准。</p>
-        </div>
-      </dialog>
+          <button class="nav-group" data-group="promotion">
+            <i data-lucide="Rocket"></i>
+            <span class="nav-group-label">推广洞察</span>
+            <i data-lucide="ChevronDown" class="nav-group-caret"></i>
+          </button>
+          <div class="nav-group-items" data-group-items="promotion">
+            <button class="nav-item" data-view="promotion-overview" data-lucide-icon="LayoutDashboard">
+              <i data-lucide="LayoutDashboard"></i><span>推广总览</span>
+            </button>
+            <button class="nav-item" data-view="promotion-daily-detail" data-lucide-icon="Table2">
+              <i data-lucide="Table2"></i><span>型号细化</span>
+            </button>
+            <button class="nav-item" data-view="promotion-sku-detail" data-lucide-icon="ScanBarcode">
+              <i data-lucide="ScanBarcode"></i><span>SKU细化</span>
+            </button>
+            <button class="nav-item" data-view="promotion-daily-followup" data-lucide-icon="CalendarRange">
+              <i data-lucide="CalendarRange"></i><span>日数据概览</span>
+            </button>
+            <button class="nav-item" data-view="promotion-daily-compare" data-lucide-icon="GitCompare">
+              <i data-lucide="GitCompare"></i><span>对比分析</span>
+            </button>
+          </div>
 
-      <footer class="footnote-grid">
-        <p>口径说明：总览指标取自源页面汇总；当前页结构与重点明细基于首屏可见的 100 条记录，不代表 758 行全量排名。</p>
-        <p>源系统：亚马逊运营工作台 · 库存监控 / 型号细化 · 展示快照生成于 2026-11-03.</p>
-      </footer>
-    </main>
-  </div>
-  <script>
-    const transitDialog = document.getElementById("transitDialog");
-    const dialogClose = document.getElementById("dialogClose");
-    const numberFormatter = new Intl.NumberFormat("zh-CN");
+          <button class="nav-group" data-group="ads">
+            <i data-lucide="Megaphone"></i>
+            <span class="nav-group-label">广告智研</span>
+            <i data-lucide="ChevronDown" class="nav-group-caret"></i>
+          </button>
+          <div class="nav-group-items" data-group-items="ads">
+            <button class="nav-item" data-view="adsbuilder" data-lucide-icon="Wand2">
+              <i data-lucide="Wand2"></i><span>广告搭建</span>
+            </button>
+            <button class="nav-item" data-view="adsdiagnosis" data-lucide-icon="FileSpreadsheet">
+              <i data-lucide="FileSpreadsheet"></i><span>广告诊断</span>
+            </button>
+          </div>
 
-    function formatNumber(value) {
-      return numberFormatter.format(Number(value) || 0);
-    }
+          <button class="nav-group" data-group="inventory">
+            <i data-lucide="Boxes"></i>
+            <span class="nav-group-label">库存监控</span>
+            <i data-lucide="ChevronDown" class="nav-group-caret"></i>
+          </button>
+          <div class="nav-group-items" data-group-items="inventory">
+            <button class="nav-item" data-view="inventory-model" data-lucide-icon="Boxes">
+              <i data-lucide="Boxes"></i><span>型号细化</span>
+            </button>
+            <button class="nav-item" data-view="inventory-color" data-lucide-icon="Palette">
+              <i data-lucide="Palette"></i><span>花色细化</span>
+            </button>
+            <button class="nav-item" data-view="inventory-sku" data-lucide-icon="ScanBarcode">
+              <i data-lucide="ScanBarcode"></i><span>SKU细化</span>
+            </button>
+          </div>
 
-    function openTransitDetail(source) {
-      const data = source.dataset;
-      const domesticTransit = Number(data.transit) || 0;
-      const fbaTransit = Number(data.fbaTransit) || 0;
-      const totalTransit = domesticTransit + fbaTransit;
-      const domesticShare = totalTransit ? (domesticTransit / totalTransit) * 100 : 0;
-      const fbaShare = totalTransit ? (fbaTransit / totalTransit) * 100 : 0;
-      const batches = Number(data.batches) || 0;
+          <button class="nav-group" data-group="aftersales">
+            <i data-lucide="LifeBuoy"></i>
+            <span class="nav-group-label">售后跟踪</span>
+            <i data-lucide="ChevronDown" class="nav-group-caret"></i>
+          </button>
+          <div class="nav-group-items" data-group-items="aftersales">
+            <button class="nav-item" data-view="emails" data-lucide-icon="Mail">
+              <i data-lucide="Mail"></i><span>邮件回复</span><span class="nav-badge">规划中</span>
+            </button>
+            <button class="nav-item" data-view="returns" data-lucide-icon="Undo2">
+              <i data-lucide="Undo2"></i><span>退货分析</span>
+            </button>
+            <button class="nav-item" data-view="profit" data-lucide-icon="TrendingUp">
+              <i data-lucide="TrendingUp"></i><span>利润分析</span>
+            </button>
+          </div>
 
-      document.getElementById("dialogTitle").textContent = data.model;
-      document.getElementById("dialogMeta").textContent =
-        data.site + " · " + data.owner + " · " + data.category;
-      document.getElementById("transitSum").textContent = formatNumber(totalTransit);
-      document.getElementById("domesticTransit").textContent = formatNumber(domesticTransit);
-      document.getElementById("fbaTransit").textContent = formatNumber(fbaTransit);
-      document.getElementById("domesticShare").textContent =
-        "占在途 " + domesticShare.toFixed(1) + "%";
-      document.getElementById("fbaShare").textContent =
-        "占在途 " + fbaShare.toFixed(1) + "%";
-      document.getElementById("domesticBar").style.width = domesticShare + "%";
-      document.getElementById("fbaTransitBar").style.width = fbaShare + "%";
-      document.getElementById("stockDomestic").textContent = formatNumber(data.domestic);
-      document.getElementById("stockFba").textContent = formatNumber(data.fba);
-      document.getElementById("stockTotal").textContent = formatNumber(data.total);
+          <button class="nav-item" data-view="mcpapi" data-lucide-icon="Plug">
+            <i data-lucide="Plug"></i><span>MCP&API</span>
+          </button>
+        </nav>
 
-      const batchParts = [];
-      if (batches > 0) {
-        batchParts.push("FBA 批次 " + formatNumber(batches) + " 个");
-      } else {
-        batchParts.push("当前快照未显示 FBA 在途批次");
-      }
-      if (data.ship && data.ship !== "-") {
-        batchParts.push("发货时间 " + data.ship);
-      }
-      if (data.eta && data.eta !== "-") {
-        batchParts.push("预计到 FBA " + data.eta);
-      }
-      document.getElementById("batchNote").textContent = batchParts.join("；") + "。";
+      </aside>
 
-      transitDialog.showModal();
-      dialogClose.focus();
-    }
+      <div class="sidebar-resizer" id="sidebar-resizer" role="separator" aria-orientation="vertical" tabindex="0" title="拖动调整侧边栏宽度" aria-label="拖动调整侧边栏宽度"></div>
 
-    document.addEventListener("click", (event) => {
-      const modelButton = event.target.closest(".model-link");
-      if (modelButton) {
-        openTransitDetail(modelButton);
-      }
-    });
+      <button class="sidebar-expand-btn" id="sidebar-expand-btn" title="展开侧边栏" aria-label="展开侧边栏" hidden>
+        <i data-lucide="PanelLeftOpen"></i>
+      </button>
+      <div class="sidebar-overlay" id="sidebar-overlay" hidden></div>
 
-    dialogClose.addEventListener("click", () => transitDialog.close());
-    transitDialog.addEventListener("click", (event) => {
-      if (event.target === transitDialog) {
-        transitDialog.close();
-      }
-    });
-  </script>
-</body>
+      <main class="main">
+        <div id="view-root"></div>
+      </main>
+    </div>
+
+    <div id="modal-root"></div>
+    <div id="toast-root"></div>
+
+    <script src="vendor/jszip.min.js"></script>
+    <script src="vendor/lucide.min.js"></script>
+    <script src="site-config.js"></script>
+    <script>window.__INVENTORY_SNAPSHOT_MODE__ = true;</script>
+    <script src="app.js"></script>
+  </body>
 </html>

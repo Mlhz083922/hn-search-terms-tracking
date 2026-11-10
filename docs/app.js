@@ -13,7 +13,7 @@ const state = {
   year: null,
   view: "overview",
   libraryPage: 1,
-  filter: { q: "", categories: [], tags: [], source: "", brands: [], rankMin: "", rankMax: "", rankCustom: false, weeklyNew: false },
+  filter: { q: "", categories: [], tags: [], brands: [], rankMin: "", rankMax: "", rankCustom: false, weeklyNew: false },
   sort: { key: "", dir: 1 },
   overviewBrands: [],
   overviewCategories: [],
@@ -739,7 +739,6 @@ function viewLibrary() {
   const rows = state.db.keywords.filter((k) => {
     if (!exactMatches(k.categoryWord, f.categories)) return false;
     if (!tagsMatch(k, f.tags)) return false;
-    if (f.source && k.source !== f.source) return false;
     if (f.weeklyNew && !isNewVsPrevWeek(k, state.weekId)) return false;
     if (!brandMatches(k, f.brands)) return false;
     const rmin = f.rankMin === "" || f.rankMin == null ? null : Number(f.rankMin);
@@ -811,11 +810,6 @@ function viewLibrary() {
               <input type="number" id="lib-rank-max" min="1" step="1" placeholder="最大" value="${esc(f.rankMax)}">
             </span>
           </div>
-          <select class="select" id="lib-state">
-            <option value="">全部状态</option>
-            <option value="manual" ${f.source === "manual" && !f.weeklyNew ? "selected" : ""}>手动登记</option>
-            <option value="weekly" ${f.source === "weekly" && !f.weeklyNew ? "selected" : ""}>周度导入</option>
-          </select>
           <div class="spacer"></div>
           <button class="btn" data-action="reset-filters"><i data-lucide="x"></i>清空</button>
         </div>
@@ -1126,7 +1120,7 @@ function bindViewEvents(root) {
         render();
       }
       else if (action === "load-more") { state.libraryPage += 1; render(); }
-      else if (action === "reset-filters") { state.filter = { q: "", categories: [], tags: [], source: "", brands: [], rankMin: "", rankMax: "", rankCustom: false, weeklyNew: false }; state.libraryPage = 1; render(); }
+      else if (action === "reset-filters") { state.filter = { q: "", categories: [], tags: [], brands: [], rankMin: "", rankMax: "", rankCustom: false, weeklyNew: false }; state.libraryPage = 1; render(); }
       else if (action === "pick-file") $("#file-input").click();
       else if (action === "parse-file") parseFile();
       else if (action === "review-tab") { state.reviewTab = tab; render(); }
@@ -1246,13 +1240,6 @@ function bindViewEvents(root) {
       runSearch();
     });
   }
-  const stateEl = root.querySelector("#lib-state");
-  if (stateEl) stateEl.addEventListener("change", () => {
-    state.filter.source = stateEl.value;
-    state.libraryPage = 1;
-    render();
-  });
-
   const rankMinEl = root.querySelector("#lib-rank-min");
   const rankMaxEl = root.querySelector("#lib-rank-max");
   const rankPresetEl = root.querySelector("#lib-rank-preset");
@@ -1836,29 +1823,73 @@ async function copyKeyword(id) {
   }
 }
 
+function keywordHistoryTableHtml(kw, ids) {
+  const rows = ids
+    .map((wid) => {
+      const rank = rankOf(kw.id, wid);
+      const volume = volOf(kw.id, wid);
+      const prev = prevWeekId(wid);
+      return {
+        wid,
+        rank,
+        volume,
+        prevRank: prev ? rankOf(kw.id, prev) : null,
+        prevVolume: prev ? volOf(kw.id, prev) : null,
+      };
+    })
+    .filter((row) => row.rank != null || row.volume != null)
+    .reverse();
+  return `<div class="table-wrap detail-history-table">
+    <table class="data">
+      <thead><tr><th>周期</th><th class="num">ABA 排名</th><th class="num">排名变化</th><th class="num">搜索量</th><th class="num">搜索量环比</th></tr></thead>
+      <tbody>${rows.map((row, index) => `
+        <tr>
+          <td>${esc(weekOptionLabel(row.wid))}${index === 0 ? ' <span class="badge new">最新</span>' : ""}</td>
+          <td class="num">${rankBadge(row.rank)}</td>
+          <td class="num">${deltaHtml(row.prevRank, row.rank)}</td>
+          <td class="num">${fmt(row.volume)}</td>
+          <td class="num">${volumeDeltaHtml(row.prevVolume, row.volume)}</td>
+        </tr>`).join("") || emptyRow(5, "暂无周度历史数据")}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function keywordTrendKpisHtml(kw) {
+  const wid = state.weekId;
+  const prev = prevWeekId(wid);
+  const rank = rankOf(kw.id, wid);
+  const prevRank = prev ? rankOf(kw.id, prev) : null;
+  const volume = volOf(kw.id, wid);
+  const prevVolume = prev ? volOf(kw.id, prev) : null;
+  const observed = weekIds().filter((w) => rankOf(kw.id, w) != null || volOf(kw.id, w) != null);
+  const first = observed[0];
+  const last = observed.at(-1);
+  return `<div class="detail-kpis">
+    <div class="detail-kpi">
+      <span>当周 ABA 排名</span>
+      <strong>${rank == null ? "未上榜" : `#${fmt(rank)}`}</strong>
+      <small>${rank == null ? "当前周期暂无排名" : deltaHtml(prevRank, rank)}</small>
+    </div>
+    <div class="detail-kpi">
+      <span>当周搜索量</span>
+      <strong>${fmt(volume)}</strong>
+      <small>${volumeDeltaHtml(prevVolume, volume)}</small>
+    </div>
+    <div class="detail-kpi">
+      <span>有数据周期</span>
+      <strong>${fmt(observed.length)}</strong>
+      <small>${first && last ? `${esc(weekOptionLabel(first))} 至 ${esc(weekOptionLabel(last))}` : "暂无历史数据"}</small>
+    </div>
+  </div>`;
+}
+
 function openKeywordModal(kid) {
   const kw = kid ? state.db.keywords.find((k) => k.id === kid) : null;
   const ids = weekIds();
   const focusBrands = state.db.settings?.focusBrands || [];
-  const histRows = kw
-    ? ids.map((wid) => {
-        const r = rankOf(kw.id, wid);
-        const v = volOf(kw.id, wid);
-        return `<tr>
-          <td>${esc(weekLabel(wid))}</td>
-          <td class="num">${rankBadge(r)}</td>
-          <td class="num">${fmt(v)}</td>
-        </tr>`;
-      }).join("")
-    : "";
   const cats = sortCategories([...new Set(state.db.keywords.map((k) => k.categoryWord).filter(Boolean))]);
   for (const c of ["Bikini", "One Piece", "Tankini", "Tankini Top"]) if (!cats.includes(c)) cats.push(c);
-  const volWeeks = ids.filter((w) => kw && volOf(kw.id, w) != null);
-  const volLast = volWeeks.at(-1);
-  const volPrev = volWeeks.at(-2);
-  const volDelta = volLast
-    ? volumeDeltaHtml(volPrev ? volOf(kw.id, volPrev) : null, volOf(kw.id, volLast))
-    : '<span class="muted">—</span>';
   state.modal = {
     kind: kw ? "edit" : "add",
     kid: kw ? kw.id : null,
@@ -1872,37 +1903,45 @@ function openKeywordModal(kid) {
         <button class="icon-btn" data-close><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body">
-        <div class="form-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">
-          <div class="field"><label>品牌</label><input id="edit-brand" list="brand-list" value="${esc(kw?.brand || "")}" placeholder="从白名单选择"></div>
-          <div class="field"><label>类目词</label>
-            <select id="edit-category">
-              <option value="">—</option>
-              ${cats.map((c) => `<option ${kw?.categoryWord === c ? "selected" : ""}>${esc(c)}</option>`).join("")}
-            </select>
-          </div>
-          ${tagInputsHtml(kw)}
-          <div class="field"><label>关键词</label><input id="edit-keyword" value="${esc(kw?.keyword || "")}" ${kw ? "disabled" : ""}></div>
-          <div class="field"><label>关键词翻译</label><input id="edit-translation" value="${esc(kw?.translation || "")}"></div>
-          <div class="field"><label>备注</label><input id="edit-notes" value="${esc(kw?.notes || "")}"></div>
-          <div class="field"><label>状态</label>
-            <select id="edit-active">
-              <option value="true" ${kw?.active !== false ? "selected" : ""}>启用</option>
-              <option value="false" ${kw?.active === false ? "selected" : ""}>停用</option>
-            </select>
-          </div>
-        </div>
-        <datalist id="brand-list">${focusBrands.map((b) => `<option value="${esc(b)}">`).join("")}</datalist>
         ${kw ? `
-          <div style="margin-top:16px">
-            <div class="panel-head" style="padding:10px 0"><h3 style="font-size:14px">周度历史</h3><span class="sub">共 ${fmt(ids.length)} 个周期 · 搜索量周环比 ${volDelta}</span></div>
-            ${trendChartsHtml(kw.id)}
-            <div class="table-wrap" style="max-height:220px">
-              <table class="data">
-                <thead><tr><th>周期</th><th class="num">ABA排名</th><th class="num">搜索量</th></tr></thead>
-                <tbody>${histRows}</tbody>
-              </table>
+          <section class="detail-section detail-trends">
+            <div class="detail-section-head">
+              <div>
+                <span class="detail-eyebrow">周度表现</span>
+                <h4>排名与搜索量趋势</h4>
+              </div>
+              <span class="detail-section-note">点击曲线圆点查看对应周期</span>
             </div>
-          </div>` : ""}
+            ${keywordTrendKpisHtml(kw)}
+            ${trendChartsHtml(kw.id)}
+            <div class="detail-subhead">
+              <h4>周度历史数据</h4>
+              <span>按最新周期倒序 · 共 ${fmt(ids.filter((w) => rankOf(kw.id, w) != null || volOf(kw.id, w) != null).length)} 条记录</span>
+            </div>
+            ${keywordHistoryTableHtml(kw, ids)}
+          </section>` : ""}
+        <section class="detail-section detail-properties">
+          <div class="detail-section-head">
+            <div>
+              <span class="detail-eyebrow">基础信息</span>
+              <h4>品牌、分类与属性标签</h4>
+            </div>
+          </div>
+          <div class="form-grid detail-form-grid">
+            <div class="field"><label>品牌</label><input id="edit-brand" list="brand-list" value="${esc(kw?.brand || "")}" placeholder="从白名单选择"></div>
+            <div class="field"><label>类目词</label>
+              <select id="edit-category">
+                <option value="">—</option>
+                ${cats.map((c) => `<option ${kw?.categoryWord === c ? "selected" : ""}>${esc(c)}</option>`).join("")}
+              </select>
+            </div>
+            ${tagInputsHtml(kw)}
+            <div class="field"><label>关键词</label><input id="edit-keyword" value="${esc(kw?.keyword || "")}" ${kw ? "disabled" : ""}></div>
+            <div class="field"><label>关键词翻译</label><input id="edit-translation" value="${esc(kw?.translation || "")}"></div>
+            <div class="field"><label>备注</label><input id="edit-notes" value="${esc(kw?.notes || "")}"></div>
+          </div>
+        </section>
+        <datalist id="brand-list">${focusBrands.map((b) => `<option value="${esc(b)}">`).join("")}</datalist>
       </div>
       <div class="modal-foot">
         <button class="btn" data-close>取消</button>
@@ -1940,7 +1979,6 @@ function openKeywordModal(kid) {
       tags: readTagInputs(modal),
       translation: modal.querySelector("#edit-translation").value.trim(),
       notes: modal.querySelector("#edit-notes").value.trim(),
-      active: modal.querySelector("#edit-active").value === "true",
     };
     try {
       if (kw) {
@@ -1961,12 +1999,16 @@ function openKeywordModal(kid) {
 
 function trendChartsHtml(kid) {
   const ids = weekIds();
-  const YEAR_PALETTE = ["#d64045", "#2563eb", "#98a2b3", "#0e7f82", "#7c3aed"];
+  const YEAR_PALETTE = ["#ff9900", "#177e89", "#7c3aed", "#64748b"];
   const dataYears = [...new Set(ids.map((w) => w.slice(0, 4)))].map(Number).sort((a, b) => b - a);
+  const latestYear = String(dataYears[0] || "");
   const YEAR_STYLE = Object.fromEntries(
     dataYears.map((y, i) => [
       String(y),
-      { color: YEAR_PALETTE[i % YEAR_PALETTE.length], name: `${String(y).slice(2)}年` },
+      {
+        color: YEAR_PALETTE[i % YEAR_PALETTE.length],
+        name: `${String(y).slice(2)}年${String(y) === latestYear ? " · 当前" : ""}`,
+      },
     ])
   );
   const yearColor = (y) => YEAR_STYLE[y]?.color || "#98a2b3";
@@ -1985,18 +2027,32 @@ function trendChartsHtml(kid) {
   };
   const mk = (kind) => {
     const pts = ids
-      .map((w, i) => ({ w, i, v: kind === "rank" ? rankOf(kid, w) : volOf(kid, w) }))
+      .map((w) => ({
+        w,
+        v: kind === "rank" ? rankOf(kid, w) : volOf(kid, w),
+        weekIdx: weekOfYear(w),
+      }))
       .filter((p) => p.v != null);
-    if (pts.length < 2) return `<div class="empty">暂无${kind === "rank" ? "排名" : "搜索量"}趋势数据</div>`;
-    const W = 620;
-    const H = 190;
+    if (pts.length < 2) {
+      return `<div class="chart-box">
+        <div class="chart-box-head"><div><div class="chart-title">${kind === "rank" ? "ABA 排名" : "搜索量"}</div><div class="chart-subtitle">周度变化</div></div></div>
+        <div class="empty chart-empty">暂无${kind === "rank" ? "排名" : "搜索量"}趋势数据</div>
+      </div>`;
+    }
+    const W = 460;
+    const H = 220;
     const padL = 54;
-    const padR = 14;
-    const padT = 14;
-    const padB = 28;
+    const padR = 18;
+    const padT = 18;
+    const padB = 36;
     const vals = pts.map((p) => (kind === "rank" ? Math.log10(p.v) : p.v));
-    const min = Math.min(...vals);
-    const max = Math.max(...vals);
+    const rawMin = Math.min(...vals);
+    const rawMax = Math.max(...vals);
+    const rawSpan = Math.max(1e-9, rawMax - rawMin);
+    const min = kind === "volume"
+      ? Math.max(0, rawMin - rawSpan * 0.08)
+      : rawMin - rawSpan * 0.08;
+    const max = rawMax + rawSpan * 0.08;
     const span = Math.max(1e-9, max - min);
     const x = (weekIdx) => padL + (weekIdx / (WEEK_TOTAL - 1)) * (W - padL - padR);
     const y = (v) =>
@@ -2006,91 +2062,114 @@ function trendChartsHtml(kid) {
     const byYear = {};
     for (const p of pts) {
       const yr = p.w.slice(0, 4);
-      (byYear[yr] ||= []).push({ ...p, weekIdx: weekOfYear(p.w) });
+      (byYear[yr] ||= []).push(p);
     }
     const years = Object.keys(byYear).sort();
+    const segmentsFor = (list) => {
+      const segments = [];
+      let current = [];
+      for (const point of list) {
+        if (current.length && point.weekIdx - current.at(-1).weekIdx > 1) {
+          segments.push(current);
+          current = [];
+        }
+        current.push(point);
+      }
+      if (current.length) segments.push(current);
+      return segments;
+    };
     const lineFor = (list) => {
-      let d = "";
-      let pen = false;
-      for (const p of list) {
-        const v = kind === "rank" ? Math.log10(p.v) : p.v;
-        d += `${pen ? "L" : "M"}${x(p.weekIdx).toFixed(1)} ${y(v).toFixed(1)}`;
-        pen = true;
+      const points = list.map((p) => ({
+        x: x(p.weekIdx),
+        y: y(kind === "rank" ? Math.log10(p.v) : p.v),
+      }));
+      let d = `M${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+      for (let i = 1; i < points.length; i++) {
+        const prev = points[i - 1];
+        const cur = points[i];
+        const midX = (prev.x + cur.x) / 2;
+        d += ` C${midX.toFixed(1)} ${prev.y.toFixed(1)} ${midX.toFixed(1)} ${cur.y.toFixed(1)} ${cur.x.toFixed(1)} ${cur.y.toFixed(1)}`;
       }
       return d;
     };
     const paths = years
-      .map((yr) => {
-        const list = byYear[yr];
-        if (list.length < 2) return "";
-        return `<path d="${lineFor(list)}" fill="none" stroke="${yearColor(yr)}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></path>`;
-      })
+      .flatMap((yr) => segmentsFor(byYear[yr]).map((segment) => ({ yr, segment })))
+      .filter(({ segment }) => segment.length >= 2)
+      .map(({ yr, segment }) => `<path d="${lineFor(segment)}" fill="none" stroke="${yearColor(yr)}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"></path>`)
       .join("");
     const areas =
       kind === "volume"
         ? years
-            .map((yr) => {
-              const list = byYear[yr];
-              if (list.length < 2) return "";
-              const d = lineFor(list);
-              const a = `${d} L${x(list[list.length - 1].weekIdx).toFixed(1)} ${H - padB} L${x(list[0].weekIdx).toFixed(1)} ${H - padB} Z`;
-              return `<path d="${a}" fill="${yearColor(yr)}" opacity="0.08"></path>`;
+            .flatMap((yr) => segmentsFor(byYear[yr]).map((segment) => ({ yr, segment })))
+            .filter(({ segment }) => segment.length >= 2)
+            .map(({ yr, segment }) => {
+              const d = lineFor(segment);
+              const a = `${d} L${x(segment.at(-1).weekIdx).toFixed(1)} ${H - padB} L${x(segment[0].weekIdx).toFixed(1)} ${H - padB} Z`;
+              const fill = yr === latestYear ? `url(#volume-fill-${kid})` : yearColor(yr);
+              return `<path d="${a}" fill="${fill}" opacity="${yr === latestYear ? "1" : "0.1"}"></path>`;
             })
             .join("")
         : "";
-    const yTicks = [min, (min + max) / 2, max]
+    const tickValues = Array.from({ length: 4 }, (_, i) => min + (span * i) / 3);
+    const gridLines = tickValues
       .map((v) => {
-        const label = kind === "rank" ? fmt(Math.round(Math.pow(10, v))) : fmt(Math.round(v));
-        return `<text x="${padL - 6}" y="${y(v) + 3}" text-anchor="end" font-size="9" fill="#667085">${label}</text>`;
+        const yPos = y(v);
+        const label = kind === "rank"
+          ? `#${fmtCompact(Math.round(Math.pow(10, v)))}`
+          : fmtCompact(Math.round(v));
+        return `<line x1="${padL}" y1="${yPos.toFixed(1)}" x2="${W - padR}" y2="${yPos.toFixed(1)}" stroke="#edf0f3" stroke-width="1"></line>
+          <text x="${padL - 8}" y="${(yPos + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#7c8591">${label}</text>`;
       })
       .join("");
     const weekIdxs = pts.map((p) => weekOfYear(p.w));
     const minWeek = Math.min(...weekIdxs);
     const maxWeek = Math.max(...weekIdxs);
     const refYear = Math.min(...years.map(Number));
-    const gridLines = [];
     const xTicks = [];
-    for (let wk = minWeek; wk <= maxWeek; wk++) {
-      gridLines.push(`<line x1="${x(wk).toFixed(1)}" y1="${padT}" x2="${x(wk).toFixed(1)}" y2="${H - padB}" stroke="#eef1f4" stroke-width="1"></line>`);
-    }
     for (let m = 1; m <= 12; m++) {
       const wk = monthFirstWeek(refYear, m);
       if (wk > maxWeek) break;
       if (wk < minWeek) continue;
-      xTicks.push(`<text x="${x(wk).toFixed(1)}" y="${H - 8}" text-anchor="middle" font-size="9" fill="#667085">${m}月</text>`);
-    }
-    if (xTicks.length === 0) {
-      xTicks.push(`<text x="${x(minWeek).toFixed(1)}" y="${H - 8}" text-anchor="middle" font-size="9" fill="#667085">第${minWeek + 1}周</text>`);
-      if (maxWeek > minWeek) {
-        xTicks.push(`<text x="${x(maxWeek).toFixed(1)}" y="${H - 8}" text-anchor="middle" font-size="9" fill="#667085">第${maxWeek + 1}周</text>`);
+      if (m % 2 === 1 || xTicks.length === 0) {
+        xTicks.push(`<text x="${x(wk).toFixed(1)}" y="${H - 12}" text-anchor="middle" font-size="9" fill="#7c8591">${m}月</text>`);
       }
     }
-    const xTicksHtml = xTicks.join("");
     const dots = pts
       .map((p) => {
         const v = kind === "rank" ? Math.log10(p.v) : p.v;
-        const wk = weekOfYear(p.w);
         const tip = kind === "rank" ? `ABA 排名 #${fmt(p.v)}` : `搜索量 ${fmt(p.v)}`;
-        return `<circle class="chart-point" data-wid="${p.w}" cx="${x(wk).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3.5"
-          fill="${yearColor(p.w.slice(0, 4))}" stroke="#fff" stroke-width="1">
+        return `<circle class="chart-point" data-wid="${p.w}" cx="${x(p.weekIdx).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3.2"
+          fill="#fff" stroke="${yearColor(p.w.slice(0, 4))}" stroke-width="1.8">
           <title>${esc(weekLabel(p.w))}：${tip}</title>
         </circle>`;
       })
       .join("");
-    const legend = years
-      .map((yr) => `<span class="chart-legend"><i style="background:${yearColor(yr)}"></i>${YEAR_STYLE[yr]?.name || yr}</span>`)
-      .join("");
-    return `<div class="chart-legend-row">${legend}</div>
-    <svg class="trend-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
-      ${gridLines.join("")}${areas}${paths}
-      ${yTicks}${xTicksHtml}${dots}
-    </svg>`;
+    const latest = pts.at(-1);
+    const latestLabel = kind === "rank" ? `#${fmt(latest.v)}` : fmtCompact(latest.v);
+    const defs = kind === "volume"
+      ? `<defs><linearGradient id="volume-fill-${kid}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${yearColor(latestYear)}" stop-opacity="0.18"></stop>
+          <stop offset="100%" stop-color="${yearColor(latestYear)}" stop-opacity="0.01"></stop>
+        </linearGradient></defs>`
+      : "";
+    return `<div class="chart-box">
+      <div class="chart-box-head">
+        <div><div class="chart-title">${kind === "rank" ? "ABA 排名" : "搜索量"}</div><div class="chart-subtitle">${kind === "rank" ? "对数刻度 · 排名越低越好" : "周度搜索量变化"}</div></div>
+        <span class="chart-latest">最新 ${latestLabel}</span>
+      </div>
+      <svg class="trend-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${kind === "rank" ? "ABA 排名趋势图" : "搜索量趋势图"}">
+        ${defs}${gridLines}${areas}${paths}${dots}
+        <line x1="${padL}" y1="${H - padB}" x2="${W - padR}" y2="${H - padB}" stroke="#d9dde3" stroke-width="1"></line>
+        ${xTicks.join("")}
+      </svg>
+    </div>`;
   };
-  return `<div class="chart-grid">
-    <div class="chart-box"><div class="chart-title">ABA 排名趋势（对数刻度 · 同周对齐按年分线 · 排名越小越靠上）</div>${mk("rank")}</div>
-    <div class="chart-box"><div class="chart-title">搜索量趋势（同周对齐按年分线）</div>${mk("volume")}</div>
-  </div>
-  <div class="chart-readout" id="chart-readout"></div>`;
+  const legend = dataYears
+    .map((yr) => `<span class="chart-legend"><i style="background:${yearColor(String(yr))}"></i>${YEAR_STYLE[String(yr)]?.name || yr}</span>`)
+    .join("");
+  return `<div class="chart-readout" id="chart-readout"></div>
+    <div class="chart-legend-row">${legend}</div>
+    <div class="chart-grid">${mk("rank")}${mk("volume")}</div>`;
 }
 
 function closeModal() {

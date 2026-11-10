@@ -631,7 +631,7 @@ button.chip { font: inherit; cursor: pointer; }
 
 .mover-head, .mover-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) 72px 72px 78px;
   gap: 10px;
   align-items: center;
 }
@@ -641,6 +641,18 @@ button.chip { font: inherit; cursor: pointer; }
   padding: 2px 4px 8px;
   border-bottom: 1px solid var(--line);
 }
+.mover-sort-btn {
+  justify-self: end;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.mover-sort-btn:hover { color: var(--accent-ink); }
+.mover-sort-btn.active { color: var(--accent-ink); }
 .mover-row {
   padding: 8px 4px;
   border-bottom: 1px solid var(--line);
@@ -656,11 +668,12 @@ button.chip { font: inherit; cursor: pointer; }
 }
 .mover-row .ranks {
   display: flex; align-items: center; gap: 6px;
+  justify-content: flex-end;
   font-variant-numeric: tabular-nums;
   font-size: 12px;
 }
 .mover-row .ranks .cur { color: var(--up); }
-.mover-row .badge { min-width: 66px; justify-content: center; }
+.mover-row .badge { min-width: 70px; justify-content: center; justify-self: end; }
 
 .toast {
   position: fixed; right: 20px; bottom: 20px; z-index: 100;
@@ -762,6 +775,8 @@ button.chip { font: inherit; cursor: pointer; }
   .detail-section-head,
   .detail-subhead { flex-direction: column; align-items: flex-start; gap: 4px; }
   .detail-history-table { max-height: 320px; }
+  .mover-head, .mover-row { grid-template-columns: minmax(0, 1fr) 62px 62px 70px; gap: 6px; }
+  .mover-sort-btn { font-size: 11px; }
   .mini-row { grid-template-columns: 22px minmax(0, 1fr) auto; }
 }
 

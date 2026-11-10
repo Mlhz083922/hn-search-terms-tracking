@@ -22,6 +22,7 @@ const state = {
   volToWeek: null,
   moverBaseWeek: null,
   moverCurWeek: null,
+  moverSort: { key: "ratio", dir: -1 },
   draft: null,
   reviewTab: "include",
   reviewLimit: 250,
@@ -492,9 +493,19 @@ function viewOverview() {
       const p = rankOf(k.id, moverBase);
       return { k, r, p, ratio: r != null && p != null && r > 0 && p > r ? p / r : null };
     })
-    .filter((x) => x.ratio != null && x.r <= 250000)
-    .sort((a, b) => b.ratio - a.ratio)
-    .slice(0, 15);
+    .filter((x) => x.ratio != null && x.r <= 250000);
+  const moverSortKey = state.moverSort?.key || "ratio";
+  const moverSortDir = state.moverSort?.dir || (moverSortKey === "ratio" ? -1 : 1);
+  movers.sort((a, b) => {
+    if (moverSortKey === "baseRank") {
+      return moverSortDir * ((a.p ?? Number.MAX_SAFE_INTEGER) - (b.p ?? Number.MAX_SAFE_INTEGER));
+    }
+    if (moverSortKey === "curRank") {
+      return moverSortDir * ((a.r ?? Number.MAX_SAFE_INTEGER) - (b.r ?? Number.MAX_SAFE_INTEGER));
+    }
+    return moverSortDir * ((a.ratio ?? 0) - (b.ratio ?? 0));
+  });
+  const topMovers = movers.slice(0, 15);
 
   const volRows = filtered
     .map((k) => ({ k, v: volOf(k.id, wid) }))
@@ -576,7 +587,7 @@ function viewOverview() {
         <div class="panel">
           <div class="panel-head">
             <h3>自定义周度对比</h3>
-            <span class="sub">排名上升最快 TOP15 · 对比周排名 25 万以内</span>
+            <span class="sub">上升词 TOP15 · 点击排名列头排序</span>
           </div>
           <div class="panel-head" style="border-bottom:0;padding-top:8px;flex-wrap:wrap">
             <span class="hstack" style="gap:6px">
@@ -592,12 +603,18 @@ function viewOverview() {
             </span>
           </div>
           <div class="panel-body">
-            ${movers.length ? `
-              <div class="mover-head"><span>关键词</span><span>基准周 → 对比周</span><span>上升幅度</span></div>
-              ${movers.map(({ k, r, p, ratio }) => `
+            ${topMovers.length ? `
+              <div class="mover-head">
+                <span>关键词</span>
+                ${moverSortButton("baseRank", "基准周")}
+                ${moverSortButton("curRank", "对比周")}
+                ${moverSortButton("ratio", "上升幅度")}
+              </div>
+              ${topMovers.map(({ k, r, p, ratio }) => `
                 <div class="mover-row clickable" data-action="open-keyword" data-id="${k.id}" title="点击查看历史趋势">
                   <span class="label" title="${esc(k.keyword)}">${esc(k.keyword)}</span>
-                  <span class="ranks"><b>#${fmt(p)}</b><span class="muted">→</span><b class="cur">#${fmt(r)}</b></span>
+                  <span class="ranks"><b>#${fmt(p)}</b></span>
+                  <span class="ranks"><b class="cur">#${fmt(r)}</b></span>
                   <span class="badge up">▲ ${ratio.toFixed(2)}x</span>
                 </div>`).join("")}
             ` : '<div class="empty">当前周排名 25 万内暂无上升词</div>'}
@@ -727,6 +744,12 @@ function sortableTh(key, label, num = false) {
   const active = state.sort.key === key;
   const arrow = active ? (state.sort.dir === 1 ? " ▲" : " ▼") : "";
   return `<th class="${num ? "num " : ""}sortable" data-sort="${key}" title="点击排序">${label}${arrow}</th>`;
+}
+
+function moverSortButton(key, label) {
+  const active = state.moverSort?.key === key;
+  const arrow = active ? (state.moverSort.dir === 1 ? " ▲" : " ▼") : "";
+  return `<button class="mover-sort-btn ${active ? "active" : ""}" type="button" data-mover-sort="${key}">${label}${arrow}</button>`;
 }
 
 function viewLibrary() {
@@ -1152,6 +1175,18 @@ function bindViewEvents(root) {
         state.sort = { key, dir: 1 };
       }
       state.libraryPage = 1;
+      render();
+    });
+  });
+
+  root.querySelectorAll("[data-mover-sort]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.moverSort;
+      if (state.moverSort.key === key) {
+        state.moverSort.dir *= -1;
+      } else {
+        state.moverSort = { key, dir: key === "ratio" ? -1 : 1 };
+      }
       render();
     });
   });

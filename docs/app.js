@@ -192,6 +192,11 @@ function volOf(kid, wid) {
   return state.db.volumes[kid]?.[wid] ?? null;
 }
 
+function isNewVsPrevWeek(kw, wid) {
+  const prev = prevWeekId(wid);
+  return rankOf(kw.id, wid) != null && (prev == null || rankOf(kw.id, prev) == null);
+}
+
 function metaOf(kid, wid) {
   return state.db.xiyou[kid]?.[wid] || null;
 }
@@ -467,7 +472,7 @@ function viewOverview() {
   const rankedPrev = prev ? filtered.filter((k) => rankOf(k.id, prev) != null).length : null;
   const volMatched = filtered.filter((k) => volOf(k.id, wid) != null).length;
   const weekHasVol = volMatched > 0;
-  const newlyAdded = filtered.filter((k) => k.firstSeenWeek === wid).length;
+  const newlyAdded = filtered.filter((k) => isNewVsPrevWeek(k, wid)).length;
   const newWeeks = Object.keys(state.db.weeks).filter((x) => x > wid).length;
 
   const topAll = ranked
@@ -510,7 +515,7 @@ function viewOverview() {
     { label: "词库词数", value: fmt(filtered.length), icon: "database", extra: `共 ${state.db.keywords.length} 条词库 · 白名单品牌 ${focusCount} 词` },
     { label: "当周上榜", value: fmt(ranked.length), icon: "trending-up", extra: rankedPrev == null ? "" : ranked.length - rankedPrev > 0 ? `<span class="up">+${ranked.length - rankedPrev}</span> 较上周变化` : ranked.length - rankedPrev < 0 ? `<span class="down">${ranked.length - rankedPrev}</span> 较上周变化` : "与上周持平" },
     { label: "搜索量已匹配", value: fmt(volMatched), icon: "search", extra: weekHasVol ? `覆盖率 ${filtered.length ? Math.round((volMatched / filtered.length) * 100) : 0}%` : "西柚数据待更新（预计周三）" },
-    { label: "本周新增", value: fmt(newlyAdded), icon: "plus-circle", extra: newWeeks > 0 ? "当前周后仍有新周期" : "当前为最新数据周" },
+    { label: "本周新增", value: fmt(newlyAdded), icon: "plus-circle", extra: "当周有排名、上周无排名" },
   ];
 
   return `
@@ -735,7 +740,7 @@ function viewLibrary() {
     if (!exactMatches(k.categoryWord, f.categories)) return false;
     if (!tagsMatch(k, f.tags)) return false;
     if (f.source && k.source !== f.source) return false;
-    if (f.weeklyNew && k.firstSeenWeek !== state.weekId) return false;
+    if (f.weeklyNew && !isNewVsPrevWeek(k, state.weekId)) return false;
     if (!brandMatches(k, f.brands)) return false;
     const rmin = f.rankMin === "" || f.rankMin == null ? null : Number(f.rankMin);
     const rmax = f.rankMax === "" || f.rankMax == null ? null : Number(f.rankMax);
@@ -779,7 +784,7 @@ function viewLibrary() {
           <p>${fmt(state.db.keywords.length)} 个女装泳装词 · 点击行查看周度历史（只读快照）</p>
         </div>
         <div class="view-actions">
-          <button class="btn ${f.weeklyNew ? "active" : ""}" data-action="toggle-library-weekly-new" title="仅显示当前数据周首次出现的新增词">
+          <button class="btn ${f.weeklyNew ? "active" : ""}" data-action="toggle-library-weekly-new" title="仅显示当周有排名、上周无排名的新增词">
             <i data-lucide="filter"></i>周度新增
           </button>
         </div>
@@ -815,7 +820,7 @@ function viewLibrary() {
           <button class="btn" data-action="reset-filters"><i data-lucide="x"></i>清空</button>
         </div>
         <div class="table-wrap">
-          <table class="data">
+          <table class="data library-table">
             <thead><tr>
               ${sortableTh("keyword", "关键词")}${sortableTh("brand", "品牌")}${sortableTh("category", "类目词")}<th>属性标签</th>
               ${sortableTh("rank", "当周排名", true)}${sortableTh("rankChange", "排名变动", true)}${sortableTh("volume", "当周搜索量", true)}${sortableTh("volChange", "搜索量环比", true)}
@@ -832,7 +837,7 @@ function viewLibrary() {
                 const focus = focusSet.has(bl);
                 return `<tr class="clickable" data-action="open-keyword" data-id="${k.id}">
                   <td class="kw-cell"><div class="main">${esc(k.keyword)}</div><div class="sub">${esc(k.translation)}</div></td>
-                  <td>${esc(k.brand || "—")}${focus ? ' <span class="badge new">重点</span>' : ""}</td>
+                  <td title="${esc(k.brand || "")}">${esc(k.brand || "—")}${focus ? ' <span class="badge new">重点</span>' : ""}</td>
                   <td>${esc(k.categoryWord || "—")}</td>
                   <td>${tagsChipsHtml(k)}</td>
                   <td class="num">${rankBadge(r)}</td>

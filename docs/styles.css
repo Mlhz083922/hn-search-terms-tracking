@@ -204,6 +204,21 @@ table.data .kw-cell { max-width: 240px; }
 .kw-cell .sub { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
 .kw-cell .tag { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 20px; font-size: 11px; background: var(--accent-soft); color: var(--accent-ink); }
 
+table.data.library-table { table-layout: fixed; min-width: 980px; }
+.library-table th:nth-child(1) { width: 24%; }
+.library-table th:nth-child(2) { width: 6%; }
+.library-table th:nth-child(3) { width: 8%; }
+.library-table th:nth-child(4) { width: 9%; }
+.library-table th:nth-child(5) { width: 11%; }
+.library-table th:nth-child(6) { width: 10%; }
+.library-table th:nth-child(7) { width: 10%; }
+.library-table th:nth-child(8) { width: 10%; }
+.library-table th:nth-child(9) { width: 12%; }
+.library-table td:nth-child(2),
+.library-table td:nth-child(4) { overflow: hidden; text-overflow: ellipsis; }
+.library-table .tag-chips { max-width: 100%; }
+.library-table td:nth-child(9) .hstack { flex-wrap: nowrap; }
+
 .badge {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 2px 8px;

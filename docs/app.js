@@ -505,7 +505,6 @@ function viewOverview() {
     }
     return moverSortDir * ((a.ratio ?? 0) - (b.ratio ?? 0));
   });
-  const topMovers = movers.slice(0, 15);
 
   const volRows = filtered
     .map((k) => ({ k, v: volOf(k.id, wid) }))
@@ -587,11 +586,11 @@ function viewOverview() {
         <div class="panel">
           <div class="panel-head">
             <h3>自定义周度对比</h3>
-            <span class="sub">上升词 TOP15 · 点击排名列头排序</span>
+            <span class="sub">上升词全部展示 · 当前周排名 25 万以内</span>
           </div>
           <div class="panel-head" style="border-bottom:0;padding-top:8px;flex-wrap:wrap">
             <span class="hstack" style="gap:6px">
-              <span class="muted sm">基准周</span>
+              <span class="muted sm">对比周</span>
               <select class="select" id="mover-base">
                 ${weekIds().map((x) => `<option value="${x}" ${x === moverBase ? "selected" : ""}>${esc(weekOptionLabel(x))}</option>`).join("")}
               </select>
@@ -599,24 +598,26 @@ function viewOverview() {
               <select class="select" id="mover-cur">
                 ${weekIds().map((x) => `<option value="${x}" ${x === moverCur ? "selected" : ""}>${esc(weekOptionLabel(x))}</option>`).join("")}
               </select>
-              <span class="muted sm">对比周</span>
+              <span class="muted sm">当前周</span>
             </span>
           </div>
           <div class="panel-body">
-            ${topMovers.length ? `
-              <div class="mover-head">
-                <span>关键词</span>
-                ${moverSortButton("baseRank", "基准周")}
-                ${moverSortButton("curRank", "对比周")}
-                ${moverSortButton("ratio", "上升幅度")}
+            ${movers.length ? `
+              <div class="mover-list">
+                <div class="mover-head">
+                  <span>关键词</span>
+                  ${moverSortButton("baseRank", "对比周")}
+                  ${moverSortButton("curRank", "当前周")}
+                  ${moverSortButton("ratio", "上升幅度")}
+                </div>
+                ${movers.map(({ k, r, p, ratio }) => `
+                  <div class="mover-row clickable" data-action="open-keyword" data-id="${k.id}" title="点击查看历史趋势">
+                    <span class="label" title="${esc(k.keyword)}">${esc(k.keyword)}</span>
+                    <span class="ranks"><b>#${fmt(p)}</b></span>
+                    <span class="ranks"><b class="cur">#${fmt(r)}</b></span>
+                    <span class="badge up">▲ ${ratio.toFixed(2)}x</span>
+                  </div>`).join("")}
               </div>
-              ${topMovers.map(({ k, r, p, ratio }) => `
-                <div class="mover-row clickable" data-action="open-keyword" data-id="${k.id}" title="点击查看历史趋势">
-                  <span class="label" title="${esc(k.keyword)}">${esc(k.keyword)}</span>
-                  <span class="ranks"><b>#${fmt(p)}</b></span>
-                  <span class="ranks"><b class="cur">#${fmt(r)}</b></span>
-                  <span class="badge up">▲ ${ratio.toFixed(2)}x</span>
-                </div>`).join("")}
             ` : '<div class="empty">当前周排名 25 万内暂无上升词</div>'}
           </div>
         </div>

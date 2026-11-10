@@ -259,7 +259,7 @@ async function api(path, options = {}) {
   return fetchStateWithProgress();
 }
 
-const STATE_KEY = "hnStateCache-69ac011253f6";
+const STATE_KEY = "hnStateCache-a5db8669ccdd";
 
 function openStateDb() {
   return new Promise((resolve, reject) => {

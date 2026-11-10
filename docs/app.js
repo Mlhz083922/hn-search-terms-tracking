@@ -680,16 +680,19 @@ function volumeTrendSvg(volSums) {
       const valueText = valueIndexes.includes(i)
         ? `<text x="${xAt(i).toFixed(1)}" y="${Math.max(padT - 8, y - 6).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="650" fill="#24313f" paint-order="stroke" stroke="#fff" stroke-width="3" stroke-linejoin="round">${fmtCompact(x.sum)}</text>`
         : "";
-      return `<rect x="${(xAt(i) - bw / 2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, h - padB - y).toFixed(1)}" rx="2.5" fill="${fill}" opacity="${isLatest ? "1" : "0.82"}">
-        <title>${dateLabel(x.wid)}：${fmt(x.sum)}</title></rect>${valueText}`;
+      return `<rect class="volume-bar ${isLatest ? "latest selected" : ""}" data-wid="${x.wid}" data-date="${dateLabel(x.wid)}" data-value="${x.sum}" tabindex="0" role="button" aria-label="${dateLabel(x.wid)} 搜索量合计 ${fmt(x.sum)}" x="${(xAt(i) - bw / 2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, h - padB - y).toFixed(1)}" rx="2.5" fill="${fill}" opacity="${isLatest ? "1" : "0.82"}"></rect>${valueText}`;
     })
     .join("");
+  const latest = volSums.at(-1);
   return `<div class="volume-chart-scroll">
     <svg class="svg-chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="周度搜索量合计">
       ${grid}<line x1="${padL}" y1="${h - padB}" x2="${w - padR}" y2="${h - padB}" stroke="#d9dde3" stroke-width="1"></line>
       ${bars}${xLabels}
       <text x="${padL}" y="16" font-size="9" fill="#8a929c">周期起始日期</text>
     </svg>
+  </div>
+  <div class="volume-chart-readout" id="volume-chart-readout">
+    <strong>${dateLabel(latest.wid)}</strong><span>搜索量合计 ${fmt(latest.sum)}</span>
   </div>`;
 }
 
@@ -1261,6 +1264,21 @@ function bindViewEvents(root) {
 
   const volFrom = root.querySelector("#vol-from");
   const volTo = root.querySelector("#vol-to");
+  const volumeBars = root.querySelectorAll(".volume-bar");
+  const volumeReadout = root.querySelector("#volume-chart-readout");
+  const selectVolumeBar = (bar) => {
+    if (!volumeReadout) return;
+    volumeBars.forEach((item) => item.classList.toggle("selected", item === bar));
+    volumeReadout.innerHTML = `<strong>${esc(bar.dataset.date || "")}</strong><span>搜索量合计 ${fmt(bar.dataset.value)}</span>`;
+  };
+  volumeBars.forEach((bar) => {
+    bar.addEventListener("click", () => selectVolumeBar(bar));
+    bar.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      selectVolumeBar(bar);
+    });
+  });
   if (volFrom) volFrom.addEventListener("change", () => {
     state.volFromWeek = volFrom.value;
     if (state.volToWeek && state.volToWeek < state.volFromWeek) state.volToWeek = state.volFromWeek;

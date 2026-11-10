@@ -397,6 +397,23 @@ button.chip { font: inherit; cursor: pointer; }
 
 .volume-chart-scroll { overflow-x: auto; overflow-y: hidden; }
 .svg-chart { width: 100%; height: auto; display: block; }
+.volume-bar { cursor: pointer; transition: opacity 0.15s, stroke-width 0.15s; }
+.volume-bar:hover { opacity: 1 !important; }
+.volume-bar.selected { stroke: #b45309; stroke-width: 2.5; opacity: 1 !important; }
+.volume-bar:focus-visible { outline: none; stroke: #b45309; stroke-width: 2.5; }
+.volume-chart-readout {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fafbfc;
+  color: var(--ink-2);
+  font-size: 12px;
+}
+.volume-chart-readout strong { color: var(--ink); font-variant-numeric: tabular-nums; }
 
 .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0; }
 .chart-box {

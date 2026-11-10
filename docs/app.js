@@ -640,24 +640,57 @@ function volumeTrendSvg(volSums) {
   if (volSums.length < 2) {
     return `<div class="empty">累计至少两个周期后显示趋势</div>`;
   }
-  const max = Math.max(...volSums.map((x) => x.sum));
-  const w = 360;
-  const h = 150;
-  const padB = 26;
-  const padT = 12;
-  const padX = 26;
-  const bw = Math.max(8, (w - padX * 2 - volSums.length * 4) / volSums.length);
-  const bars = volSums
-    .map((x, i) => {
-      const bh = ((x.sum / max) * (h - padT - padB));
-      const x0 = padX + i * (bw + 4);
-      return `<rect x="${x0}" y="${h - padB - bh}" width="${bw}" height="${bh}" rx="2" fill="#0e7f82" opacity="0.85">
-        <title>${esc(weekLabel(x.wid))}: ${fmt(x.sum)}</title></rect>
-        <text x="${x0 + bw / 2}" y="${h - 10}" text-anchor="middle" font-size="9" fill="#667085">${esc(weekLabel(x.wid).replace("-", "~"))}</text>
-        <text x="${x0 + bw / 2}" y="${h - padB - bh - 4}" text-anchor="middle" font-size="9" fill="#344054">${fmtCompact(x.sum)}</text>`;
+  const max = Math.max(1, ...volSums.map((x) => x.sum));
+  const n = volSums.length;
+  const w = Math.max(660, 90 + n * 14);
+  const h = 230;
+  const padL = 58;
+  const padR = 24;
+  const padB = 52;
+  const padT = 34;
+  const slot = (w - padL - padR) / n;
+  const bw = Math.min(24, Math.max(5, slot * 0.62));
+  const xAt = (i) => padL + slot * (i + 0.5);
+  const yAt = (value) => h - padB - (value / max) * (h - padT - padB);
+  const dateLabel = (wid) => {
+    const [year, month, day] = wid.split("-").map(Number);
+    return `${year}/${month}/${day}`;
+  };
+  const grid = [0, 0.5, 1]
+    .map((ratio) => {
+      const y = yAt(max * ratio);
+      return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${w - padR}" y2="${y.toFixed(1)}" stroke="#e9edf1" stroke-width="1"></line>
+        <text x="${padL - 8}" y="${(y + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#7c8591">${fmtCompact(max * ratio)}</text>`;
     })
     .join("");
-  return `<svg class="svg-chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">${bars}</svg>`;
+  const labelCount = Math.min(7, n);
+  const labelIndexes = [...new Set(Array.from({ length: labelCount }, (_, i) =>
+    Math.round((i * (n - 1)) / Math.max(1, labelCount - 1))
+  ))];
+  const xLabels = labelIndexes
+    .map((i) => `<text x="${xAt(i).toFixed(1)}" y="${h - 16}" text-anchor="middle" font-size="9" fill="#667085">${dateLabel(volSums[i].wid)}</text>`)
+    .join("");
+  const maxIndex = volSums.reduce((best, item, index) => item.sum > volSums[best].sum ? index : best, 0);
+  const valueIndexes = [...new Set([maxIndex, n - 1])];
+  const bars = volSums
+    .map((x, i) => {
+      const y = yAt(x.sum);
+      const isLatest = i === n - 1;
+      const fill = isLatest ? "#ff9900" : "#2b9a99";
+      const valueText = valueIndexes.includes(i)
+        ? `<text x="${xAt(i).toFixed(1)}" y="${Math.max(padT - 8, y - 6).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="650" fill="#24313f" paint-order="stroke" stroke="#fff" stroke-width="3" stroke-linejoin="round">${fmtCompact(x.sum)}</text>`
+        : "";
+      return `<rect x="${(xAt(i) - bw / 2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, h - padB - y).toFixed(1)}" rx="2.5" fill="${fill}" opacity="${isLatest ? "1" : "0.82"}">
+        <title>${dateLabel(x.wid)}：${fmt(x.sum)}</title></rect>${valueText}`;
+    })
+    .join("");
+  return `<div class="volume-chart-scroll">
+    <svg class="svg-chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="周度搜索量合计">
+      ${grid}<line x1="${padL}" y1="${h - padB}" x2="${w - padR}" y2="${h - padB}" stroke="#d9dde3" stroke-width="1"></line>
+      ${bars}${xLabels}
+      <text x="${padL}" y="16" font-size="9" fill="#8a929c">周期起始日期</text>
+    </svg>
+  </div>`;
 }
 
 function sparklineHtml(kid) {

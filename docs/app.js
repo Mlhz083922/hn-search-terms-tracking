@@ -259,7 +259,7 @@ async function api(path, options = {}) {
   return fetchStateWithProgress();
 }
 
-const STATE_KEY = "hnStateCache-a5db8669ccdd";
+const STATE_KEY = "hnStateCache-d6727c77209b";
 
 function openStateDb() {
   return new Promise((resolve, reject) => {
@@ -1031,6 +1031,8 @@ function viewXiyou() {
   const active = state.db.keywords.filter((k) => k.active !== false);
   const ranked = active.filter((k) => rankOf(k.id, wid) != null);
   const volMatched = ranked.filter((k) => volOf(k.id, wid) != null).length;
+  const noVolume = ranked.filter((k) => volOf(k.id, wid) == null && metaOf(k.id, wid) != null).length;
+  const pending = Math.max(0, ranked.length - volMatched - noVolume);
   const w = state.db.weeks[wid];
   return `
     <section class="view">
@@ -1055,13 +1057,14 @@ function viewXiyou() {
             </select>
             <span class="chip"><b>${fmt(ranked.length)}</b> 当周上榜词</span>
             <span class="chip green"><b>${fmt(volMatched)}</b> 已有搜索量</span>
-            <button class="chip amber chip-toggle" type="button" data-action="xiyou-pending" data-week="${wid}" aria-expanded="false"><b>${fmt(Math.max(0, ranked.length - volMatched))}</b> 待匹配 <i data-lucide="chevron-down"></i></button>
+            <button class="chip amber chip-toggle" type="button" data-action="xiyou-pending" data-week="${wid}" aria-expanded="false"><b>${fmt(pending)}</b> 待匹配 <i data-lucide="chevron-down"></i></button>
+            ${noVolume ? `<span class="chip" title="西柚已返回该词记录，但 abaReport 为空，无法取得周搜索量"><b>${fmt(noVolume)}</b> 西柚无搜索量</span>` : ""}
           </div>
           <div id="xiyou-pending-list"></div>
           <div class="auto-match-box">
             <div class="hstack">
               <button class="btn primary" data-action="xiyou-auto-match" data-week="${wid}"><i data-lucide="zap"></i>一键自动匹配搜索量</button>
-              <span class="kbd-hint">自动跳过已有搜索量的词，进度实时显示</span>
+              <span class="kbd-hint">自动查询所有尚未响应的上榜词；西柚已确认无数据的词不会重复消耗积分</span>
             </div>
             <div id="xiyou-auto-status"></div>
           </div>
@@ -1638,7 +1641,7 @@ function xiyouPendingToggle(week) {
   const active = state.db.keywords.filter((k) => k.active !== false);
   const pending = active
     .map((k) => ({ k, rank: rankOf(k.id, week) }))
-    .filter((x) => x.rank != null && volOf(x.k.id, week) == null)
+    .filter((x) => x.rank != null && volOf(x.k.id, week) == null && metaOf(x.k.id, week) == null)
     .sort((a, b) => a.rank - b.rank);
   box.dataset.open = "1";
   chip?.setAttribute("aria-expanded", "true");
@@ -1646,7 +1649,7 @@ function xiyouPendingToggle(week) {
     ? `<div class="panel" style="margin-top:12px">
         <div class="panel-head">
           <h3>待匹配关键词</h3>
-          <span class="sub">有当周 ABA 排名但尚无搜索量</span>
+          <span class="sub">有当周 ABA 排名，但尚未向西柚发起查询</span>
         </div>
         <div class="table-wrap" style="max-height:420px">
           <table class="data">
@@ -1744,7 +1747,7 @@ async function xiyouAutoMatch(week) {
     box = getStatusBox();
     if (box) {
       box.innerHTML = `
-        <div class="chip"><b>${fmt(cur.done)}/${fmt(cur.total)}</b> 词 · 已匹配 ${fmt(cur.matched)} · 消耗 ${fmt(cur.costCredits)} 积分</div>
+        <div class="chip"><b>${fmt(cur.done)}/${fmt(cur.total)}</b> 词 · 已获取搜索量 ${fmt(cur.matched)} · 无搜索量 ${fmt(cur.noVolumeCount || 0)} · 消耗 ${fmt(cur.costCredits)} 积分</div>
         <div class="progress"><i style="width:${pct}%"></i></div>`;
     }
     return cur;
@@ -1763,15 +1766,17 @@ async function xiyouAutoMatch(week) {
       box.innerHTML = `
         <div class="chip-row" style="margin-top:6px">
           <span class="chip ${cur.stopped === "credits" ? "amber" : "green"}"><b>${cur.stopped === "credits" ? "已暂停" : "匹配完成"}</b></span>
-          <span class="chip green"><b>${fmt(cur.matched)}</b> 匹配成功</span>
+          <span class="chip green"><b>${fmt(cur.matched)}</b> 已获取搜索量</span>
+          ${cur.noVolumeCount ? `<span class="chip"><b>${fmt(cur.noVolumeCount)}</b> 西柚无搜索量</span>` : ""}
           ${cur.stopped === "credits" ? '<span class="chip red">西柚积分不足</span>' : ""}
           <span class="chip"><b>${fmt(cur.costCredits)}</b> 积分</span>
         </div>
-        ${cur.notFound.length ? `<div class="kbd-hint">未匹配：${esc(cur.notFound.slice(0, 10).join("、"))}${cur.notFound.length > 10 ? " 等" : ""}</div>` : ""}`;
+        ${cur.noVolume?.length ? `<div class="kbd-hint">西柚已返回记录但无搜索量：${esc(cur.noVolume.slice(0, 10).join("、"))}${cur.noVolumeCount > 10 ? " 等" : ""}</div>` : ""}
+        ${cur.notFound.length ? `<div class="kbd-hint">词库未命中：${esc(cur.notFound.slice(0, 10).join("、"))}${cur.notFound.length > 10 ? " 等" : ""}</div>` : ""}`;
       toast(
         cur.stopped === "credits"
           ? `自动匹配暂停：积分不足，已匹配 ${cur.matched} 词`
-          : `自动匹配完成：${cur.matched} 词`,
+          : `自动匹配完成：${cur.matched} 词有搜索量，${cur.noVolumeCount || 0} 词西柚无数据`,
         "success"
       );
     } else {
@@ -2224,42 +2229,82 @@ $("#btn-refresh")?.addEventListener("click", async () => {
   }
 });
 
-$("#btn-export").addEventListener("click", exportCsv);
+function csvCell(value) {
+  const text = String(value ?? "");
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
 
-function exportCsv() {
-  if (!state.db) return;
+function buildKeywordsCsv() {
+  if (!state.db) return "";
   const wid = state.weekId;
-  const head = ["关键词", "翻译", "品牌", "类目词", "属性词", "来源", "状态", "当周ABA排名", "当周搜索量"];
-  const rows = state.db.keywords.map((k) => [
-    k.keyword,
-    k.translation || "",
-    k.brand || "",
-    k.categoryWord || "",
-    k.attribute || "",
-    k.source === "weekly" ? "周度导入" : "手动",
-    k.active === false ? "停用" : "启用",
-    rankOf(k.id, wid) ?? "",
-    volOf(k.id, wid) ?? "",
-  ]);
-  const csv =
-    "\uFEFF" +
-    [head, ...rows]
-      .map((r) =>
-        r
-          .map((v) => {
-            const s = String(v ?? "");
-            return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-          })
-          .join(",")
-      )
-      .join("\n");
+  const prev = prevWeekId(wid);
+  const weeks = weekIds();
+  const header = [
+    "关键词",
+    "关键词翻译",
+    "品牌",
+    "类目词",
+    "属性标签",
+    "当周ABA排名",
+    "排名变动",
+    "当周搜索量",
+    "搜索量环比",
+  ];
+  for (const weekId of weeks) {
+    header.push(`${weekOptionLabel(weekId)} ABA排名`, `${weekOptionLabel(weekId)} 搜索量`);
+  }
+  const rows = state.db.keywords.map((kw) => {
+    const rank = rankOf(kw.id, wid);
+    const prevRank = prev ? rankOf(kw.id, prev) : null;
+    const volume = volOf(kw.id, wid);
+    const prevVolume = prev ? volOf(kw.id, prev) : null;
+    const rankChange = rank == null || prevRank == null
+      ? ""
+      : rank < prevRank
+        ? `+${prevRank - rank}`
+        : rank > prevRank
+          ? `-${rank - prevRank}`
+          : "0";
+    const volumeChange = volume == null || prevVolume == null || prevVolume === 0
+      ? ""
+      : `${(((volume - prevVolume) / prevVolume) * 100).toFixed(1)}%`;
+    const row = [
+      kw.keyword,
+      kw.translation || "",
+      kw.brand || "",
+      kw.categoryWord || "",
+      tagEntries(kw).map((entry) => `${entry.dim}:${entry.value}`).join("；"),
+      rank ?? "",
+      rankChange,
+      volume ?? "",
+      volumeChange,
+    ];
+    for (const weekId of weeks) {
+      row.push(rankOf(kw.id, weekId) ?? "", volOf(kw.id, weekId) ?? "");
+    }
+    return row;
+  });
+  return "\uFEFF" + [header, ...rows]
+    .map((row) => row.map(csvCell).join(","))
+    .join("\n");
+}
+
+function exportKeywordsCsv() {
+  const csv = buildKeywordsCsv();
+  if (!csv) return;
+  const wid = state.weekId;
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "hn-search-terms-" + wid + ".csv";
-  a.click();
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `hn-search-terms-${wid}.csv`;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+$("#btn-export").addEventListener("click", exportKeywordsCsv);
 
 $("#btn-update-team-link")?.addEventListener("click", updateTeamLink);
 

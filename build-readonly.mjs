@@ -266,20 +266,21 @@ async function refreshStateInBackground() {
     ""
   )
   .replace(
-    '${sortableTh("source", "来源")}${sortableTh("status", "状态")}<th>操作</th>',
-    '${sortableTh("source", "来源")}${sortableTh("status", "状态")}'
-  )
-  .replace(
     `                  <td>
                     <div class="hstack" style="gap:4px">
+                      <button class="icon-btn" title="复制关键词" data-action="copy-keyword" data-id="\${k.id}"><i data-lucide="copy"></i></button>
                       <button class="icon-btn" title="编辑" data-action="edit-keyword" data-id="\${k.id}"><i data-lucide="pencil"></i></button>
                       <button class="icon-btn danger" title="删除" data-action="delete-keyword" data-id="\${k.id}"><i data-lucide="trash-2"></i></button>
                     </div>
                   </td>
 `,
-    ""
+    `                  <td>
+                    <div class="hstack" style="gap:4px">
+                      <button class="icon-btn" title="复制关键词" data-action="copy-keyword" data-id="\${k.id}"><i data-lucide="copy"></i></button>
+                    </div>
+                  </td>
+`
   )
-  .replace('emptyRow(11, "没有匹配的关键词")', 'emptyRow(10, "没有匹配的关键词")')
   .replace(
     `  $("#modal-root").appendChild(modal);
   initIcons(modal);`,

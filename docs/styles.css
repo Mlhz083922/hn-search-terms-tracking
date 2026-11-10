@@ -594,6 +594,62 @@ button.chip { font: inherit; cursor: pointer; }
   .tab { flex: none; }
   .form-grid { grid-template-columns: 1fr; }
   .view-head { flex-direction: column; align-items: flex-start; }
+  .view-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+  .view-actions > .multi-filter,
+  .view-actions > .btn,
+  .view-actions .multi-filter > .btn {
+    width: 100%;
+  }
+  .view-actions .multi-filter > .btn {
+    justify-content: center;
+    padding-inline: 8px;
+    white-space: nowrap;
+  }
+  .toolbar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+  .toolbar .search {
+    grid-column: 1 / -1;
+    min-width: 0;
+    max-width: none;
+    flex: none;
+  }
+  .toolbar .multi-filter,
+  .toolbar .multi-filter > .btn,
+  .toolbar > .select {
+    width: 100%;
+    min-width: 0;
+  }
+  .toolbar .multi-filter > .btn {
+    justify-content: center;
+    padding-inline: 8px;
+    white-space: nowrap;
+  }
+  .toolbar .rank-filter {
+    grid-column: 1 / -1;
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .toolbar .rank-filter > .select {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+  .toolbar .rank-custom {
+    flex: 1 1 100%;
+  }
+  .toolbar .spacer {
+    display: none;
+  }
+  .toolbar [data-action="reset-filters"] {
+    grid-column: 1 / -1;
+    justify-content: center;
+  }
   .mini-row { grid-template-columns: 22px minmax(0, 1fr) auto; }
 }
 

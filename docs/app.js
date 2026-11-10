@@ -18,7 +18,6 @@ const state = {
   overviewBrands: [],
   overviewCategories: [],
   overviewTags: [],
-  overviewWeeklyNew: false,
   volFromWeek: null,
   volToWeek: null,
   moverBaseWeek: null,
@@ -42,6 +41,11 @@ function prevWeekId(wid) {
 
 function weekLabel(wid) {
   return state.db.weeks[wid]?.label || wid;
+}
+
+function weekOptionLabel(wid) {
+  if (!wid) return "";
+  return `${wid.slice(0, 4)}年 · ${weekLabel(wid)}`;
 }
 
 function focusBrandSet() {
@@ -250,7 +254,7 @@ async function api(path, options = {}) {
   return fetchStateWithProgress();
 }
 
-const STATE_KEY = "hnStateCache-7f609cf69d4e";
+const STATE_KEY = "hnStateCache-69ac011253f6";
 
 function openStateDb() {
   return new Promise((resolve, reject) => {
@@ -456,8 +460,7 @@ function viewOverview() {
   const filtered = active.filter((k) =>
     brandMatches(k, state.overviewBrands) &&
     exactMatches(k.categoryWord, state.overviewCategories) &&
-    tagsMatch(k, state.overviewTags) &&
-    (!state.overviewWeeklyNew || k.firstSeenWeek === wid)
+    tagsMatch(k, state.overviewTags)
   );
   const focusCount = filtered.filter((k) => focusSet.has(String(k.brand || "").toLowerCase().trim())).length;
   const ranked = filtered.filter((k) => rankOf(k.id, wid) != null);
@@ -467,14 +470,18 @@ function viewOverview() {
   const newlyAdded = filtered.filter((k) => k.firstSeenWeek === wid).length;
   const newWeeks = Object.keys(state.db.weeks).filter((x) => x > wid).length;
 
-  const topRows = ranked
+  const topAll = ranked
     .map((k) => ({ k, rank: rankOf(k.id, wid) }))
     .filter((x) => x.rank <= 9999)
-    .sort((a, b) => a.rank - b.rank)
-    .slice(0, 500);
-  const moverBase = state.moverBaseWeek || prev;
-  const moverCur = state.moverCurWeek || wid;
-  const movers = ranked
+    .sort((a, b) => a.rank - b.rank);
+  const topRows = topAll.slice(0, 500);
+  const moverBase = state.moverBaseWeek && state.db.weeks[state.moverBaseWeek]
+    ? state.moverBaseWeek
+    : prev;
+  const moverCur = state.moverCurWeek && state.db.weeks[state.moverCurWeek]
+    ? state.moverCurWeek
+    : wid;
+  const movers = filtered
     .map((k) => {
       const r = rankOf(k.id, moverCur);
       const p = rankOf(k.id, moverBase);
@@ -490,8 +497,11 @@ function viewOverview() {
     .sort((a, b) => b.v - a.v)
     .slice(0, 10);
   const volWeeks = weekIds().filter((x) => filtered.some((k) => volOf(k.id, x) != null));
-  const volRangeStart = state.volFromWeek || volWeeks.slice(-12)[0] || volWeeks[0];
-  const volRangeEnd = state.volToWeek || volWeeks.at(-1);
+  let volRangeStart = state.volFromWeek || volWeeks.slice(-12)[0] || volWeeks[0];
+  let volRangeEnd = state.volToWeek || volWeeks.at(-1);
+  if (volRangeStart && volRangeEnd && volRangeStart > volRangeEnd) {
+    volRangeEnd = volRangeStart;
+  }
   const volRange = volWeeks.filter((x) => x >= volRangeStart && x <= volRangeEnd);
   const volSums = volRange
     .map((x) => ({ wid: x, sum: filtered.reduce((a, k) => a + (volOf(k.id, x) || 0), 0) }));
@@ -500,7 +510,7 @@ function viewOverview() {
     { label: "词库词数", value: fmt(filtered.length), icon: "database", extra: `共 ${state.db.keywords.length} 条词库 · 白名单品牌 ${focusCount} 词` },
     { label: "当周上榜", value: fmt(ranked.length), icon: "trending-up", extra: rankedPrev == null ? "" : ranked.length - rankedPrev > 0 ? `<span class="up">+${ranked.length - rankedPrev}</span> 较上周变化` : ranked.length - rankedPrev < 0 ? `<span class="down">${ranked.length - rankedPrev}</span> 较上周变化` : "与上周持平" },
     { label: "搜索量已匹配", value: fmt(volMatched), icon: "search", extra: weekHasVol ? `覆盖率 ${filtered.length ? Math.round((volMatched / filtered.length) * 100) : 0}%` : "西柚数据待更新（预计周三）" },
-    { label: "本周新增", value: fmt(newlyAdded), icon: "plus-circle", extra: state.overviewWeeklyNew ? "已筛选仅看当周新增词" : newWeeks > 0 ? "当前周后仍有新周期" : "当前为最新数据周" },
+    { label: "本周新增", value: fmt(newlyAdded), icon: "plus-circle", extra: newWeeks > 0 ? "当前周后仍有新周期" : "当前为最新数据周" },
   ];
 
   return `
@@ -514,9 +524,6 @@ function viewOverview() {
           ${multiFilterHtml("品牌", focusBrands, state.overviewBrands, "overview-brands")}
           ${multiFilterHtml("类目词", cats, state.overviewCategories, "overview-cats")}
           ${multiFilterHtml("属性标签", tagVals, state.overviewTags, "overview-tags")}
-          <button class="btn ${state.overviewWeeklyNew ? "active" : ""}" data-action="toggle-weekly-new" title="仅显示当周首次出现的新增词">
-            <i data-lucide="filter"></i>周度新增
-          </button>
         </div>
       </div>
       <div class="grid-stats">
@@ -532,7 +539,7 @@ function viewOverview() {
         <div class="panel">
           <div class="panel-head">
             <h3>当周 ABA 排名 TOP（1 万以内）</h3>
-            <span class="sub">共 ${fmt(topRows.length)} 词 · 点击行查看历史趋势</span>
+            <span class="sub">${topAll.length > topRows.length ? `显示 ${fmt(topRows.length)} / 共 ${fmt(topAll.length)} 词` : `共 ${fmt(topRows.length)} 词`} · 点击行查看历史趋势</span>
           </div>
           <div class="table-wrap">
             <table class="data">
@@ -570,11 +577,11 @@ function viewOverview() {
             <span class="hstack" style="gap:6px">
               <span class="muted sm">基准周</span>
               <select class="select" id="mover-base">
-                ${weekIds().map((x) => `<option value="${x}" ${x === moverBase ? "selected" : ""}>${esc(weekLabel(x))}</option>`).join("")}
+                ${weekIds().map((x) => `<option value="${x}" ${x === moverBase ? "selected" : ""}>${esc(weekOptionLabel(x))}</option>`).join("")}
               </select>
               <span class="muted">→</span>
               <select class="select" id="mover-cur">
-                ${weekIds().map((x) => `<option value="${x}" ${x === moverCur ? "selected" : ""}>${esc(weekLabel(x))}</option>`).join("")}
+                ${weekIds().map((x) => `<option value="${x}" ${x === moverCur ? "selected" : ""}>${esc(weekOptionLabel(x))}</option>`).join("")}
               </select>
               <span class="muted sm">对比周</span>
             </span>
@@ -611,11 +618,11 @@ function viewOverview() {
             <span class="hstack" style="gap:6px">
               <span class="muted sm">起始周</span>
               <select class="select" id="vol-from">
-                ${volWeeks.map((x) => `<option value="${x}" ${x === volRangeStart ? "selected" : ""}>${esc(weekLabel(x))}</option>`).join("")}
+                ${volWeeks.map((x) => `<option value="${x}" ${x === volRangeStart ? "selected" : ""}>${esc(weekOptionLabel(x))}</option>`).join("")}
               </select>
               <span class="muted">→</span>
               <select class="select" id="vol-to">
-                ${volWeeks.map((x) => `<option value="${x}" ${x === volRangeEnd ? "selected" : ""}>${esc(weekLabel(x))}</option>`).join("")}
+                ${volWeeks.map((x) => `<option value="${x}" ${x === volRangeEnd ? "selected" : ""}>${esc(weekOptionLabel(x))}</option>`).join("")}
               </select>
               <span class="muted sm">结束周</span>
             </span>
@@ -707,8 +714,6 @@ function sortValue(k, key) {
       const p = pw ? volOf(k.id, pw) : null;
       return c == null || p == null || p === 0 ? null : (c - p) / p;
     }
-    case "source": return k.source || "";
-    case "status": return k.active === false ? 0 : 1;
     default: return String(k.keyword || "").toLowerCase();
   }
 }
@@ -774,6 +779,9 @@ function viewLibrary() {
           <p>${fmt(state.db.keywords.length)} 个女装泳装词 · 点击行查看周度历史（只读快照）</p>
         </div>
         <div class="view-actions">
+          <button class="btn ${f.weeklyNew ? "active" : ""}" data-action="toggle-library-weekly-new" title="仅显示当前数据周首次出现的新增词">
+            <i data-lucide="filter"></i>周度新增
+          </button>
         </div>
       </div>
       <div class="panel">
@@ -802,7 +810,6 @@ function viewLibrary() {
             <option value="">全部状态</option>
             <option value="manual" ${f.source === "manual" && !f.weeklyNew ? "selected" : ""}>手动登记</option>
             <option value="weekly" ${f.source === "weekly" && !f.weeklyNew ? "selected" : ""}>周度导入</option>
-            <option value="new" ${f.weeklyNew ? "selected" : ""}>仅当周新增</option>
           </select>
           <div class="spacer"></div>
           <button class="btn" data-action="reset-filters"><i data-lucide="x"></i>清空</button>
@@ -812,7 +819,7 @@ function viewLibrary() {
             <thead><tr>
               ${sortableTh("keyword", "关键词")}${sortableTh("brand", "品牌")}${sortableTh("category", "类目词")}<th>属性标签</th>
               ${sortableTh("rank", "当周排名", true)}${sortableTh("rankChange", "排名变动", true)}${sortableTh("volume", "当周搜索量", true)}${sortableTh("volChange", "搜索量环比", true)}
-              ${sortableTh("source", "来源")}${sortableTh("status", "状态")}
+              <th>操作</th>
             </tr></thead>
             <tbody>
               ${shown.map((k) => {
@@ -832,10 +839,13 @@ function viewLibrary() {
                   <td class="num">${deltaHtml(p, r)}</td>
                   <td class="num">${fmt(v)}</td>
                   <td class="num">${volumeDeltaHtml(pv, v)}</td>
-                  <td>${k.source === "weekly" ? '<span class="tag">周度导入</span>' : "手动"}</td>
-                  <td>${k.active === false ? '<span class="badge flat">停用</span>' : '<span class="badge up">启用</span>'}</td>
+                  <td>
+                    <div class="hstack" style="gap:4px">
+                      <button class="icon-btn" title="复制关键词" data-action="copy-keyword" data-id="${k.id}"><i data-lucide="copy"></i></button>
+                    </div>
+                  </td>
                 </tr>`;
-              }).join("") || emptyRow(10, "没有匹配的关键词")}
+              }).join("") || emptyRow(9, "没有匹配的关键词")}
             </tbody>
           </table>
         </div>
@@ -1021,7 +1031,7 @@ function viewXiyou() {
   const wid = state.xiyouWeekId || state.weekId;
   const active = state.db.keywords.filter((k) => k.active !== false);
   const ranked = active.filter((k) => rankOf(k.id, wid) != null);
-  const volMatched = active.filter((k) => volOf(k.id, wid) != null).length;
+  const volMatched = ranked.filter((k) => volOf(k.id, wid) != null).length;
   const w = state.db.weeks[wid];
   return `
     <section class="view">
@@ -1098,12 +1108,18 @@ function bindViewEvents(root) {
       const term = el.dataset.term;
       const status = el.dataset.status;
       if (action === "open-keyword") openKeywordModal(id);
+      else if (action === "copy-keyword") { e.stopPropagation(); copyKeyword(id); }
       else if (action === "edit-keyword") { e.stopPropagation(); openKeywordModal(id); }
       else if (action === "delete-keyword") { e.stopPropagation(); deleteKeyword(id); }
       else if (action === "add-keyword") openKeywordModal();
       else if (action === "goto-update") { state.view = "update"; render(); }
       else if (action === "goto-xiyou") { state.view = "xiyou"; render(); }
-      else if (action === "toggle-weekly-new") { state.overviewWeeklyNew = !state.overviewWeeklyNew; render(); }
+      else if (action === "toggle-library-weekly-new") {
+        state.filter.weeklyNew = !state.filter.weeklyNew;
+        if (state.filter.weeklyNew) state.filter.source = "";
+        state.libraryPage = 1;
+        render();
+      }
       else if (action === "load-more") { state.libraryPage += 1; render(); }
       else if (action === "reset-filters") { state.filter = { q: "", categories: [], tags: [], source: "", brands: [], rankMin: "", rankMax: "", rankCustom: false, weeklyNew: false }; state.libraryPage = 1; render(); }
       else if (action === "pick-file") $("#file-input").click();
@@ -1175,13 +1191,35 @@ function bindViewEvents(root) {
 
   const moverBase = root.querySelector("#mover-base");
   const moverCur = root.querySelector("#mover-cur");
-  if (moverBase) moverBase.addEventListener("change", () => { state.moverBaseWeek = moverBase.value; render(); });
-  if (moverCur) moverCur.addEventListener("change", () => { state.moverCurWeek = moverCur.value; render(); });
+  if (moverBase) moverBase.addEventListener("change", () => {
+    const ids = weekIds();
+    const baseIdx = ids.indexOf(moverBase.value);
+    const curIdx = ids.indexOf(state.moverCurWeek || state.weekId);
+    state.moverBaseWeek = moverBase.value;
+    if (baseIdx >= curIdx) state.moverCurWeek = ids[baseIdx + 1] || moverBase.value;
+    render();
+  });
+  if (moverCur) moverCur.addEventListener("change", () => {
+    const ids = weekIds();
+    const curIdx = ids.indexOf(moverCur.value);
+    const baseIdx = ids.indexOf(state.moverBaseWeek || prevWeekId(state.weekId));
+    state.moverCurWeek = moverCur.value;
+    if (baseIdx >= curIdx) state.moverBaseWeek = ids[Math.max(0, curIdx - 1)] || moverCur.value;
+    render();
+  });
 
   const volFrom = root.querySelector("#vol-from");
   const volTo = root.querySelector("#vol-to");
-  if (volFrom) volFrom.addEventListener("change", () => { state.volFromWeek = volFrom.value; render(); });
-  if (volTo) volTo.addEventListener("change", () => { state.volToWeek = volTo.value; render(); });
+  if (volFrom) volFrom.addEventListener("change", () => {
+    state.volFromWeek = volFrom.value;
+    if (state.volToWeek && state.volToWeek < state.volFromWeek) state.volToWeek = state.volFromWeek;
+    render();
+  });
+  if (volTo) volTo.addEventListener("change", () => {
+    state.volToWeek = volTo.value;
+    if (state.volFromWeek && state.volToWeek < state.volFromWeek) state.volFromWeek = state.volToWeek;
+    render();
+  });
 
   const q = root.querySelector("#lib-q");
   if (q) {
@@ -1205,14 +1243,7 @@ function bindViewEvents(root) {
   }
   const stateEl = root.querySelector("#lib-state");
   if (stateEl) stateEl.addEventListener("change", () => {
-    const v = stateEl.value;
-    if (v === "new") {
-      state.filter.weeklyNew = true;
-      state.filter.source = "";
-    } else {
-      state.filter.weeklyNew = false;
-      state.filter.source = v;
-    }
+    state.filter.source = stateEl.value;
     state.libraryPage = 1;
     render();
   });
@@ -1272,6 +1303,8 @@ function bindViewEvents(root) {
   if (weekSel) {
     weekSel.onchange = () => {
       state.weekId = weekSel.value;
+      state.moverBaseWeek = null;
+      state.moverCurWeek = null;
       render();
     };
   }
@@ -1772,6 +1805,29 @@ async function deleteKeyword(id) {
     render();
   } catch (err) {
     toast(err.message, "error");
+  }
+}
+
+async function copyKeyword(id) {
+  const kw = state.db.keywords.find((k) => k.id === id);
+  if (!kw) return;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(kw.keyword);
+    } else {
+      const input = document.createElement("textarea");
+      input.value = kw.keyword;
+      input.style.position = "fixed";
+      input.style.opacity = "0";
+      document.body.appendChild(input);
+      input.select();
+      const copied = document.execCommand("copy");
+      input.remove();
+      if (!copied) throw new Error("复制失败");
+    }
+    toast(`已复制：${kw.keyword}`, "success");
+  } catch (err) {
+    toast("复制失败，请打开详情后手动复制", "error");
   }
 }
 

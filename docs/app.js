@@ -506,11 +506,6 @@ function viewOverview() {
     return moverSortDir * ((a.ratio ?? 0) - (b.ratio ?? 0));
   });
 
-  const volRows = filtered
-    .map((k) => ({ k, v: volOf(k.id, wid) }))
-    .filter((x) => x.v != null)
-    .sort((a, b) => b.v - a.v)
-    .slice(0, 10);
   const volWeeks = weekIds().filter((x) => filtered.some((k) => volOf(k.id, x) != null));
   let volRangeStart = state.volFromWeek || volWeeks.slice(-12)[0] || volWeeks[0];
   let volRangeEnd = state.volToWeek || volWeeks.at(-1);
@@ -550,8 +545,7 @@ function viewOverview() {
           </div>`).join("")}
       </div>
 
-      <div class="two-col">
-        <div class="panel">
+      <div class="panel">
           <div class="panel-head">
             <h3>当周 ABA 排名 TOP（1 万以内）</h3>
             <span class="sub">${topAll.length > topRows.length ? `显示 ${fmt(topRows.length)} / 共 ${fmt(topAll.length)} 词` : `共 ${fmt(topRows.length)} 词`} · 点击行查看历史趋势</span>
@@ -581,8 +575,8 @@ function viewOverview() {
               </tbody>
             </table>
           </div>
-        </div>
-
+      </div>
+      <div class="sub-grid" style="margin-top:16px">
         <div class="panel">
           <div class="panel-head">
             <h3>自定义周度对比</h3>
@@ -619,20 +613,6 @@ function viewOverview() {
                   </div>`).join("")}
               </div>
             ` : '<div class="empty">当前周排名 25 万内暂无上升词</div>'}
-          </div>
-        </div>
-      </div>
-
-      <div class="sub-grid">
-        <div class="panel">
-          <div class="panel-head"><h3>当周搜索量 Top 10</h3><span class="sub">来自西柚匹配</span></div>
-          <div class="panel-body">
-            ${volRows.length ? volRows.map(({ k, v }, i) => `
-              <div class="mini-row clickable" data-action="open-keyword" data-id="${k.id}" title="点击查看历史趋势" style="margin-bottom:6px">
-                <span class="rank">${i + 1}</span>
-                <span class="label" title="${esc(k.keyword)}">${esc(k.keyword)}</span>
-                <span class="val"><strong>${fmt(v)}</strong></span>
-              </div>`).join("") : '<div class="empty">本周搜索量待西柚更新（预计每周三）</div>'}
           </div>
         </div>
         <div class="panel">

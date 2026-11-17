@@ -260,7 +260,7 @@ async function api(path, options = {}) {
   return fetchStateWithProgress();
 }
 
-const STATE_KEY = "hnStateCache-7d6bff5f7985";
+const STATE_KEY = "hnStateCache-19fc67537c6b";
 
 function openStateDb() {
   return new Promise((resolve, reject) => {
@@ -517,7 +517,7 @@ function viewOverview() {
     .map((x) => ({ wid: x, sum: filtered.reduce((a, k) => a + (volOf(k.id, x) || 0), 0) }));
 
   const stats = [
-    { label: "词库词数", value: fmt(filtered.length), icon: "database", extra: `共 ${state.db.keywords.length} 条词库 · 白名单品牌 ${focusCount} 词` },
+    { label: "词库词数", value: fmt(filtered.length), icon: "database", extra: `共 ${active.length} 条启用词 · 白名单品牌 ${focusCount} 词` },
     { label: "当周上榜", value: fmt(ranked.length), icon: "trending-up", extra: rankedPrev == null ? "" : ranked.length - rankedPrev > 0 ? `<span class="up">+${ranked.length - rankedPrev}</span> 较上周变化` : ranked.length - rankedPrev < 0 ? `<span class="down">${ranked.length - rankedPrev}</span> 较上周变化` : "与上周持平" },
     { label: "搜索量已匹配", value: fmt(volMatched), icon: "search", extra: weekHasVol ? `覆盖率 ${filtered.length ? Math.round((volMatched / filtered.length) * 100) : 0}%` : "西柚数据待更新（预计周三）" },
     { label: "本周新增", value: fmt(newlyAdded), icon: "plus-circle", extra: "当周有排名、上周无排名" },
@@ -771,12 +771,13 @@ function moverSortButton(key, label) {
 
 function viewLibrary() {
   const f = state.filter;
-  const cats = sortCategories([...new Set(state.db.keywords.map((k) => k.categoryWord).filter(Boolean))]);
-  const tagVals = tagValuesFrom(state.db.keywords);
+  const activeKeywords = state.db.keywords.filter((k) => k.active !== false);
+  const cats = sortCategories([...new Set(activeKeywords.map((k) => k.categoryWord).filter(Boolean))]);
+  const tagVals = tagValuesFrom(activeKeywords);
   const focusBrands = state.db.settings?.focusBrands || [];
   const focusSet = new Set(focusBrands.map((b) => String(b).toLowerCase().trim()));
   const q = f.q.toLowerCase();
-  const rows = state.db.keywords.filter((k) => {
+  const rows = activeKeywords.filter((k) => {
     if (!exactMatches(k.categoryWord, f.categories)) return false;
     if (!tagsMatch(k, f.tags)) return false;
     if (f.weeklyNew && !isNewVsPrevWeek(k, state.weekId)) return false;
@@ -820,7 +821,7 @@ function viewLibrary() {
       <div class="view-head">
         <div>
           <h2>关键词库</h2>
-          <p>${fmt(state.db.keywords.length)} 个女装泳装词 · 点击行查看周度历史（只读快照）</p>
+          <p>${fmt(activeKeywords.length)} 个女装泳装词 · 点击行查看周度历史与编辑</p>
         </div>
         <div class="view-actions">
           <button class="btn ${f.weeklyNew ? "active" : ""}" data-action="toggle-library-weekly-new" title="仅显示当周有排名、上周无排名的新增词">
@@ -2320,7 +2321,7 @@ function buildKeywordsCsv() {
   for (const weekId of weeks) {
     header.push(`${weekOptionLabel(weekId)} ABA排名`, `${weekOptionLabel(weekId)} 搜索量`);
   }
-  const rows = state.db.keywords.map((kw) => {
+  const rows = state.db.keywords.filter((kw) => kw.active !== false).map((kw) => {
     const rank = rankOf(kw.id, wid);
     const prevRank = prev ? rankOf(kw.id, prev) : null;
     const volume = volOf(kw.id, wid);
